@@ -96,60 +96,68 @@ class LicitacionBackgroundManager {
         });
     }
     
-    async handleMessage(request, sender, sendResponse) {
-        try {
-            console.log('📨 Mensaje recibido:', request.action, sender.tab?.url);
-            
-            switch (request.action) {
-                case 'startLicitacionAutomation':
-                    await this.startLicitacionAutomation(request, sender, sendResponse);
-                    break;
-                    
-                case 'stopAutomation':
-                    await this.stopAutomation(request, sender, sendResponse);
-                    break;
-                    
-                case 'getAutomationStatus':
-                    await this.getAutomationStatus(request, sender, sendResponse);
-                    break;
-                    
-                case 'openPopup':
-                    await this.openPopup(request, sender, sendResponse);
-                    break;
-                    
-                case 'getConfiguration':
-                    sendResponse({ 
-                        success: true, 
-                        config: this.config 
-                    });
-                    break;
-                    
-                case 'updateConfiguration':
-                    await this.updateConfiguration(request, sender, sendResponse);
-                    break;
-                    
-                case 'testCredentials':
-                    await this.testCredentials(request, sender, sendResponse);
-                    break;
-                    
-                case 'logAutomationEvent':
-                    await this.logAutomationEvent(request, sender, sendResponse);
-                    break;
-                    
-                default:
-                    sendResponse({
-                        success: false,
-                        error: 'Acción no reconocida: ' + request.action
-                    });
+    handleMessage(request, sender, sendResponse) {
+        console.log('📨 Mensaje recibido:', request.action, sender.tab?.url);
+
+        // Manejar mensajes asíncronos correctamente
+        const handleAsync = async () => {
+            try {
+                switch (request.action) {
+                    case 'startLicitacionAutomation':
+                        await this.startLicitacionAutomation(request, sender, sendResponse);
+                        break;
+
+                    case 'stopAutomation':
+                        await this.stopAutomation(request, sender, sendResponse);
+                        break;
+
+                    case 'getAutomationStatus':
+                        await this.getAutomationStatus(request, sender, sendResponse);
+                        break;
+
+                    case 'openPopup':
+                        await this.openPopup(request, sender, sendResponse);
+                        break;
+
+                    case 'getConfiguration':
+                        sendResponse({
+                            success: true,
+                            config: this.config
+                        });
+                        break;
+
+                    case 'updateConfiguration':
+                        await this.updateConfiguration(request, sender, sendResponse);
+                        break;
+
+                    case 'testCredentials':
+                        await this.testCredentials(request, sender, sendResponse);
+                        break;
+
+                    case 'logAutomationEvent':
+                        await this.logAutomationEvent(request, sender, sendResponse);
+                        break;
+
+                    default:
+                        sendResponse({
+                            success: false,
+                            error: 'Acción no reconocida: ' + request.action
+                        });
+                }
+            } catch (error) {
+                console.error('❌ Error manejando mensaje:', error);
+                sendResponse({
+                    success: false,
+                    error: error.message || 'Error desconocido'
+                });
             }
-            
-        } catch (error) {
-            console.error('❌ Error manejando mensaje:', error);
-            sendResponse({
-                success: false,
-                error: error.message || 'Error desconocido'
-            });
-        }
+        };
+
+        // Ejecutar handler asíncrono
+        handleAsync();
+
+        // Retornar true para mantener el canal de sendResponse abierto
+        return true;
     }
     
     async startLicitacionAutomation(request, sender, sendResponse) {
