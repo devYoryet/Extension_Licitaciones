@@ -105,8 +105,15 @@ class LicitacionAutomation {
 
     async initializeBasedOnContext() {
         try {
+            // SALTAR COMPLETAMENTE si estamos en PharmaTender
+            // content-platform.js maneja TODA la UI en PharmaTender
+            if (window.location.href.includes('prime.pharmatender.cl')) {
+                console.log('✅ En PharmaTender - content-platform.js manejará la UI');
+                return;
+            }
+
             const isActive = await this.checkExtensionState();
-            
+
             if (!isActive) {
                 console.log('⚠️ EXTENSIÓN DESACTIVADA - No se ejecutará');
                 this.showDisabledIndicator();
@@ -138,26 +145,36 @@ class LicitacionAutomation {
                     break;
 
                 case 'pharmatender_carga_documentos':
-                    console.log('📍 En página de carga de documentos PharmaTender - Preparando automatización...');
-                    this.addIndicator('📄 Carga de documentos detectada', 'success');
+                    console.log('📍 En página de carga de documentos PharmaTender');
+                    // content-platform.js maneja la UI en PharmaTender
                     if (this.licitacionId) {
                         await this.prepareForDocumentUpload();
                     }
                     break;
 
                 case 'pharmatender_licitacion':
-                    console.log('📍 En página de licitación PharmaTender - Preparando...');
-                    this.addIndicator('📋 Licitación PharmaTender detectada', 'info');
+                    console.log('📍 En página de licitación PharmaTender');
+                    // content-platform.js maneja la UI en PharmaTender
                     break;
 
                 case 'pharmatender_dashboard':
-                    console.log('📍 En dashboard PharmaTender - En espera...');
-                    this.addIndicator('🏠 Dashboard PharmaTender', 'info');
+                    console.log('📍 En dashboard PharmaTender');
+                    // content-platform.js maneja la UI en PharmaTender
                     break;
-                    
+
+                case 'pharmatender_other':
+                    console.log('📍 Otra página de PharmaTender');
+                    // content-platform.js maneja la UI en PharmaTender
+                    break;
+
                 default:
-                    console.log('📍 Página no reconocida - En espera...', this.currentPage);
-                    this.addIndicator('❓ Página no reconocida', 'warning');
+                    // Solo mostrar indicador en páginas de Mercado Público no reconocidas
+                    if (window.location.href.includes('mercadopublico.cl')) {
+                        console.log('📍 Página de Mercado Público no reconocida - En espera...', this.currentPage);
+                        this.addIndicator('❓ Página no reconocida', 'warning');
+                    } else {
+                        console.log('📍 Página no reconocida:', this.currentPage);
+                    }
             }
         } catch (error) {
             console.error('❌ Error en inicialización:', error);
@@ -171,25 +188,25 @@ class LicitacionAutomation {
     async prepareForDocumentUpload() {
         try {
             console.log('📄 Preparando carga de documentos para licitación:', this.licitacionId);
-            
+
             // Esperar a que la página cargue completamente
             await this.waitForElement('body', 5000);
-            
-            // Agregar botón de automatización
-            this.addAutomationButton();
-            
-            // Mostrar información de la licitación detectada
-            this.addIndicator(`📄 Licitación: ${this.licitacionId}`, 'success');
-            
+
+            // content-platform.js maneja el botón y los indicadores en PharmaTender
+            // Este script solo se encarga de la lógica de automatización
+
             console.log('✅ Preparación completada para carga de documentos');
-            
+
         } catch (error) {
             console.error('❌ Error preparando carga de documentos:', error);
-            this.addIndicator('❌ Error en preparación', 'error');
         }
     }
 
     addAutomationButton() {
+        // NOTA: Esta función está DEPRECADA para páginas de PharmaTender
+        // content-platform.js maneja los botones en PharmaTender
+        // Esta función solo se mantiene para compatibilidad con Mercado Público si es necesario
+
         // Evitar duplicados
         if (document.getElementById('pharmatender-automation-btn')) {
             return;
