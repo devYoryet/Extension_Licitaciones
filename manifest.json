@@ -3,53 +3,62 @@
   "name": "PharmaTender - Licitaciones",
   "version": "1.0.0",
   "description": "Automatización inteligente del proceso de licitaciones en PharmaTender y Mercado Público",
-  
+
   "permissions": [
-    "activeTab", 
-    "storage", 
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
     "notifications",
-    "alarms",
-    "tabs"
+    "downloads",
+    "unlimitedStorage",
+    "alarms"
   ],
-  
+
   "host_permissions": [
-    "*://prime.pharmatender.cl/*",
-    "*://www.mercadopublico.cl/*",
-    "*://mercadopublico.cl/*",
-    "*://www.chilecompra.cl/*"
+    "https://prime.pharmatender.cl/*",
+    "https://www.mercadopublico.cl/*",
+    "https://heimdall.mercadopublico.cl/*",
+    "https://accounts.claveunica.gob.cl/*",
+    "https://auth.mercadopublico.cl/*",
+    "https://www.chilecompra.cl/*"
   ],
-  
+
   "background": {
     "service_worker": "background.js"
   },
-  
+
   "content_scripts": [
     {
       "matches": [
-        "*://prime.pharmatender.cl/*"
-      ],
-      "js": [
-        "config.js", 
-        "security-utils.js", 
-        "content-licitacion.js",
-        "content-platform.js"
-      ],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "*://www.mercadopublico.cl/*",
-        "*://mercadopublico.cl/*"
+        "https://prime.pharmatender.cl/*"
       ],
       "js": [
         "config.js",
-        "security-utils.js", 
+        "security-utils.js",
+        "content-platform.js",
         "content-licitacion.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_end",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://www.mercadopublico.cl/*",
+        "https://heimdall.mercadopublico.cl/*",
+        "https://accounts.claveunica.gob.cl/*",
+        "https://auth.mercadopublico.cl/*"
+      ],
+      "js": [
+        "config.js",
+        "security-utils.js",
+        "content-licitacion.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
     }
   ],
-  
+
   "action": {
     "default_popup": "popup.html",
     "default_title": "PharmaTender - Automatización de Licitaciones",
@@ -60,14 +69,14 @@
       "128": "icons/icon128.png"
     }
   },
-  
+
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  
+
   "web_accessible_resources": [
     {
       "resources": [
@@ -76,12 +85,12 @@
         "icons/*.png"
       ],
       "matches": [
-        "*://prime.pharmatender.cl/*",
-        "*://www.mercadopublico.cl/*",
-        "*://mercadopublico.cl/*"
+        "https://prime.pharmatender.cl/*",
+        "https://www.mercadopublico.cl/*",
+        "https://heimdall.mercadopublico.cl/*"
       ]
     }
   ],
-  
+
   "minimum_chrome_version": "88"
 }

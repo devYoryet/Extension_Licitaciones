@@ -1,22 +1,21 @@
-// content-platform.js - Detector de licitaciones en PharmaTender
+// content-platform.js - Detector de licitaciones en PharmaTender (SIMPLIFICADO)
 
 class PlatformLicitacionDetector {
     constructor() {
         this.userInfo = null;
         this.isAuthenticated = false;
-        this.licitacionesDetectadas = [];
-        
+        this.currentLicitacionId = null;
+
         console.log('🏢 Platform Licitacion Detector cargado en:', window.location.href);
         this.init();
     }
-    
+
     init() {
         this.detectAuthenticationState();
-        this.detectLicitacionesPage();
-        this.addPlatformIndicator();
+        this.detectLicitacionPage();
         this.setupMessageListener();
     }
-    
+
     detectAuthenticationState() {
         try {
             // Verificar elementos DOM que indican autenticación
@@ -28,13 +27,13 @@ class PlatformLicitacionDetector {
                 '#user-dropdown',
                 '.user-name'
             ];
-            
+
             let userElement = null;
             for (const selector of userMenus) {
                 userElement = document.querySelector(selector);
                 if (userElement) break;
             }
-            
+
             // Buscar información de usuario en el DOM
             const userNameElements = [
                 '.user-name',
@@ -43,7 +42,7 @@ class PlatformLicitacionDetector {
                 '.navbar-text',
                 '.welcome-text'
             ];
-            
+
             let userName = null;
             for (const selector of userNameElements) {
                 const element = document.querySelector(selector);
@@ -52,323 +51,230 @@ class PlatformLicitacionDetector {
                     break;
                 }
             }
-            
+
             // Verificar presencia de token CSRF
             const csrfToken = document.querySelector('meta[name="csrf-token"]');
-            
+
             // Verificar si NO estamos en login page
-            const isLoginPage = window.location.href.includes('/login') || 
+            const isLoginPage = window.location.href.includes('/login') ||
                                window.location.pathname === '/login';
-            
+
             this.isAuthenticated = !isLoginPage && (userElement || userName || csrfToken);
-            
+
             if (this.isAuthenticated) {
                 this.userInfo = {
                     name: userName || 'Usuario autenticado',
                     hasMenu: !!userElement,
                     hasCsrf: !!csrfToken
                 };
-                
+
                 console.log('✅ Usuario autenticado detectado:', this.userInfo);
             } else {
                 console.log('❌ Usuario no autenticado o en página de login');
             }
-            
+
         } catch (error) {
             console.error('❌ Error detectando autenticación:', error);
             this.isAuthenticated = false;
         }
     }
 
-    detectLicitacionesPage() {
-        // Detectar si estamos en una página relacionada con licitaciones
-        const currentUrl = window.location.href;
+    detectLicitacionPage() {
         const currentPath = window.location.pathname;
-        
-        // Patrones de URLs relacionadas con licitaciones
-        const licitacionPatterns = [
-            '/licitaciones',
-            '/licitacion/',
-            '/tender/',
-            '/bid/',
-            '/procurement/',
-            'licitacion'
-        ];
-        
-        const isLicitacionPage = licitacionPatterns.some(pattern => 
-            currentUrl.includes(pattern) || currentPath.includes(pattern)
-        );
-        
-        if (isLicitacionPage) {
-            console.log('📋 Página de licitaciones detectada');
-            this.scanForLicitaciones();
+
+        // SOLO detectar en páginas específicas de carga de documentos
+        const isCargaDocumentosPage = currentPath.includes('/carga-documentos/');
+
+        if (isCargaDocumentosPage) {
+            console.log('📋 Página de carga de documentos detectada');
+
+            // Extraer ID de licitación de la URL
+            const match = currentPath.match(/\/carga-documentos\/([^\/]+)/);
+            if (match && match[1]) {
+                this.currentLicitacionId = match[1];
+                console.log('🎯 ID de licitación extraído:', this.currentLicitacionId);
+
+                // Agregar botón de automatización y indicador
+                this.addAutomationButton();
+                this.addInfoIndicator();
+            }
+        } else {
+            console.log('ℹ️ No es una página de carga de documentos, extensión en espera');
         }
     }
 
-    scanForLicitaciones() {
-        // Buscar licitaciones en la página actual
-        try {
-            const licitacionSelectors = [
-                '[data-licitacion-id]',
-                '.licitacion-item',
-                '.tender-item',
-                '.bid-item',
-                'tr[data-id]', // Filas de tabla con ID
-                '.card[data-licitacion]'
-            ];
-            
-            const licitaciones = [];
-            
-            for (const selector of licitacionSelectors) {
-                const elements = document.querySelectorAll(selector);
-                
-                elements.forEach(element => {
-                    const id = element.dataset.licitacionId || 
-                              element.dataset.id ||
-                              element.dataset.licitacion ||
-                              element.getAttribute('data-id');
-                    
-                    if (id) {
-                        const nombre = this.extractLicitacionName(element);
-                        const estado = this.extractLicitacionState(element);
-                        
-                        licitaciones.push({
-                            id: id,
-                            nombre: nombre,
-                            estado: estado,
-                            element: element
-                        });
-                    }
-                });
-            }
-            
-            this.licitacionesDetectadas = licitaciones;
-            
-            if (licitaciones.length > 0) {
-                console.log(`📋 ${licitaciones.length} licitaciones detectadas:`, licitaciones);
-                this.addLicitacionActions();
-            }
-            
-        } catch (error) {
-            console.error('❌ Error escaneando licitaciones:', error);
-        }
-    }
-
-    extractLicitacionName(element) {
-        const nameSelectors = [
-            '.licitacion-nombre',
-            '.tender-name',
-            '.title',
-            'h3',
-            'h4',
-            '.name',
-            'td:nth-child(2)', // Segunda columna en tabla
-            '.card-title'
-        ];
-        
-        for (const selector of nameSelectors) {
-            const nameElement = element.querySelector(selector);
-            if (nameElement && nameElement.textContent.trim()) {
-                return nameElement.textContent.trim();
-            }
-        }
-        
-        return 'Licitación sin nombre';
-    }
-
-    extractLicitacionState(element) {
-        const stateSelectors = [
-            '.estado',
-            '.state',
-            '.status',
-            '.badge',
-            '.label'
-        ];
-        
-        for (const selector of stateSelectors) {
-            const stateElement = element.querySelector(selector);
-            if (stateElement && stateElement.textContent.trim()) {
-                return stateElement.textContent.trim();
-            }
-        }
-        
-        return 'Estado desconocido';
-    }
-
-    addLicitacionActions() {
-        // Agregar botones de automatización a cada licitación
-        this.licitacionesDetectadas.forEach(licitacion => {
-            this.addAutomationButton(licitacion);
-        });
-    }
-
-    addAutomationButton(licitacion) {
+    addAutomationButton() {
         // Evitar duplicados
-        if (licitacion.element.querySelector('.automation-button')) {
+        const existingButton = document.getElementById('pht-automation-btn');
+        if (existingButton) {
             return;
         }
-        
+
         const button = document.createElement('button');
-        button.className = 'automation-button';
+        button.id = 'pht-automation-btn';
         button.innerHTML = `
-            <span style="margin-right: 5px;">🤖</span>
-            Automatizar
+            <span style="margin-right: 8px; font-size: 18px;">🤖</span>
+            <span>Automatizar Licitación</span>
         `;
-        
+
         button.style.cssText = `
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
+            padding: 16px 24px;
+            border-radius: 50px;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            margin: 5px;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            z-index: 9998;
+            display: flex;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         `;
-        
+
         button.addEventListener('mouseenter', () => {
-            button.style.transform = 'scale(1.05)';
-            button.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.5)';
+            button.style.transform = 'translateY(-4px) scale(1.05)';
+            button.style.boxShadow = '0 12px 28px rgba(102, 126, 234, 0.6)';
         });
-        
+
         button.addEventListener('mouseleave', () => {
-            button.style.transform = 'scale(1)';
-            button.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+            button.style.transform = 'translateY(0) scale(1)';
+            button.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.4)';
         });
-        
+
         button.addEventListener('click', () => {
-            this.startLicitacionAutomation(licitacion);
+            this.startLicitacionAutomation();
         });
-        
-        // Insertar el botón en un lugar apropiado del elemento
-        const actionContainer = licitacion.element.querySelector('.actions') ||
-                               licitacion.element.querySelector('.buttons') ||
-                               licitacion.element;
-        
-        if (actionContainer) {
-            actionContainer.appendChild(button);
-        }
+
+        document.body.appendChild(button);
+        console.log('✅ Botón de automatización agregado');
     }
 
-    async startLicitacionAutomation(licitacion) {
-        try {
-            console.log('🚀 Iniciando automatización para licitación:', licitacion.id);
-            
-            // Deshabilitar botón temporalmente
-            const button = licitacion.element.querySelector('.automation-button');
-            if (button) {
-                button.disabled = true;
-                button.textContent = '⏳ Procesando...';
-            }
-            
-            // Enviar mensaje al background script para iniciar automatización
-            const response = await chrome.runtime.sendMessage({
-                action: 'startLicitacionAutomation',
-                licitacionId: licitacion.id,
-                licitacionData: {
-                    id: licitacion.id,
-                    nombre: licitacion.nombre,
-                    estado: licitacion.estado
-                }
-            });
-            
-            if (response && response.success) {
-                console.log('✅ Automatización iniciada exitosamente');
-                
-                if (button) {
-                    button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
-                    button.textContent = '✅ Iniciada';
-                }
-                
-                // Mostrar notificación
-                this.showNotification('Automatización iniciada', 'success');
-                
-            } else {
-                console.error('❌ Error iniciando automatización:', response);
-                
-                if (button) {
-                    button.disabled = false;
-                    button.innerHTML = '<span style="margin-right: 5px;">🤖</span>Automatizar';
-                }
-                
-                this.showNotification('Error iniciando automatización', 'error');
-            }
-            
-        } catch (error) {
-            console.error('❌ Error en startLicitacionAutomation:', error);
-            this.showNotification('Error en automatización', 'error');
+    addInfoIndicator() {
+        // Evitar duplicados
+        const existingIndicator = document.getElementById('pht-info-indicator');
+        if (existingIndicator) {
+            return;
         }
-    }
 
-    addPlatformIndicator() {
-        // Solo mostrar indicador si estamos autenticados
-        if (!this.isAuthenticated) return;
-        
         const indicator = document.createElement('div');
-        indicator.id = 'pharmatender-licitacion-indicator';
-        
-        const licitacionCount = this.licitacionesDetectadas.length;
-        const indicatorText = licitacionCount > 0 ? 
-            `🤖 Extensión Lista (${licitacionCount} licitaciones)` :
-            '🤖 Extensión Licitaciones Lista';
-        
+        indicator.id = 'pht-info-indicator';
         indicator.innerHTML = `
             <div style="
                 position: fixed;
-                bottom: 20px;
+                top: 80px;
                 right: 20px;
-                z-index: 10000;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
                 color: white;
                 padding: 12px 18px;
-                border-radius: 25px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                border-radius: 12px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 font-size: 13px;
                 font-weight: 500;
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                display: flex;
-                align-items: center;
-                gap: 8px;
+                box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3);
+                z-index: 9997;
+                max-width: 280px;
                 cursor: pointer;
                 transition: all 0.3s ease;
-                opacity: 0.9;
-                max-width: 250px;
-            " onmouseover="this.style.opacity='1'; this.style.transform='scale(1.05)';" 
-               onmouseout="this.style.opacity='0.9'; this.style.transform='scale(1)';">
-                <span>${indicatorText}</span>
+            " onmouseover="this.style.transform='scale(1.05)';"
+               onmouseout="this.style.transform='scale(1)';">
+                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 4px;">Extensión PharmaTender</div>
+                <div style="font-size: 14px; font-weight: 600;">📋 ${this.currentLicitacionId}</div>
             </div>
         `;
-        
+
         document.body.appendChild(indicator);
-        
+
         // Click para abrir popup de extensión
         indicator.addEventListener('click', () => {
-            chrome.runtime.sendMessage({ action: 'openPopup' });
+            chrome.runtime.sendMessage({ action: 'openPopup' }).catch(() => {
+                console.log('No se pudo abrir popup');
+            });
         });
-        
-        // Auto-fade después de 8 segundos
-        setTimeout(() => {
-            if (indicator) {
-                indicator.style.opacity = '0.6';
-                indicator.style.transform = 'scale(0.9)';
+
+        console.log('✅ Indicador de información agregado');
+    }
+
+    async startLicitacionAutomation() {
+        try {
+            console.log('🚀 Iniciando automatización para licitación:', this.currentLicitacionId);
+
+            // Actualizar botón
+            const button = document.getElementById('pht-automation-btn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Iniciando...</span>';
+                button.style.cursor = 'not-allowed';
+                button.style.opacity = '0.7';
             }
-        }, 8000);
+
+            // Enviar mensaje al background script para iniciar automatización
+            const response = await chrome.runtime.sendMessage({
+                action: 'startLicitacionAutomation',
+                licitacionId: this.currentLicitacionId,
+                licitacionData: {
+                    id: this.currentLicitacionId,
+                    url: window.location.href
+                }
+            });
+
+            console.log('📨 Respuesta del background:', response);
+
+            if (response && response.success) {
+                console.log('✅ Automatización iniciada exitosamente');
+
+                if (button) {
+                    button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100())';
+                    button.innerHTML = '<span style="margin-right: 8px;">✅</span><span>Automatización Iniciada</span>';
+                }
+
+                this.showNotification('✅ Automatización iniciada correctamente', 'success');
+
+            } else {
+                const errorMsg = response?.error || 'Error desconocido';
+                console.error('❌ Error iniciando automatización:', errorMsg);
+
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = '<span style="margin-right: 8px;">🤖</span><span>Automatizar Licitación</span>';
+                    button.style.cursor = 'pointer';
+                    button.style.opacity = '1';
+                }
+
+                this.showNotification('❌ Error: ' + errorMsg, 'error');
+            }
+
+        } catch (error) {
+            console.error('❌ Error en startLicitacionAutomation:', error);
+
+            const button = document.getElementById('pht-automation-btn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<span style="margin-right: 8px;">🤖</span><span>Automatizar Licitación</span>';
+                button.style.cursor = 'pointer';
+                button.style.opacity = '1';
+            }
+
+            this.showNotification('❌ Error al iniciar automatización', 'error');
+        }
     }
 
     showNotification(message, type = 'info') {
         const notification = document.createElement('div');
         notification.className = `pharmatender-notification notification-${type}`;
-        
+
         const colors = {
             success: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
             error: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
             info: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
             warning: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)'
         };
-        
+
         notification.innerHTML = `
             <div style="
                 position: fixed;
@@ -383,7 +289,7 @@ class PlatformLicitacionDetector {
                 font-size: 14px;
                 font-weight: 500;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-                max-width: 300px;
+                max-width: 350px;
                 animation: slideInNotification 0.3s ease-out;
             ">
                 ${message}
@@ -395,10 +301,10 @@ class PlatformLicitacionDetector {
                 }
             </style>
         `;
-        
+
         document.body.appendChild(notification);
-        
-        // Auto-remove después de 4 segundos
+
+        // Auto-remove después de 5 segundos
         setTimeout(() => {
             if (notification && notification.parentNode) {
                 notification.style.opacity = '0';
@@ -409,90 +315,49 @@ class PlatformLicitacionDetector {
                     }
                 }, 300);
             }
-        }, 4000);
+        }, 5000);
     }
-    
-    setupMessageListener() {
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            switch (request.action) {
-                case 'getAuthStatus':
-                    sendResponse({
-                        authenticated: this.isAuthenticated,
-                        userInfo: this.userInfo,
-                        url: window.location.href,
-                        licitacionesDetectadas: this.licitacionesDetectadas.length
-                    });
-                    break;
-                    
-                case 'refreshAuthStatus':
-                    this.detectAuthenticationState();
-                    this.detectLicitacionesPage();
-                    sendResponse({
-                        authenticated: this.isAuthenticated,
-                        userInfo: this.userInfo,
-                        licitacionesDetectadas: this.licitacionesDetectadas.length
-                    });
-                    break;
 
-                case 'getLicitacionData':
-                    const licitacion = this.licitacionesDetectadas.find(l => 
-                        l.id === request.licitacionId
-                    );
-                    
-                    if (licitacion) {
-                        sendResponse({
-                            success: true,
-                            licitacion: licitacion
-                        });
-                    } else {
-                        sendResponse({
-                            success: false,
-                            error: 'Licitación no encontrada'
-                        });
-                    }
-                    break;
-                    
+    setupMessageListener() {
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            console.log('📨 Mensaje recibido en platform detector:', message);
+
+            switch (message.action) {
+                case 'getPageInfo':
+                    sendResponse({
+                        success: true,
+                        data: {
+                            authenticated: this.isAuthenticated,
+                            licitacionId: this.currentLicitacionId,
+                            userInfo: this.userInfo,
+                            url: window.location.href
+                        }
+                    });
+                    return false;
+
+                case 'showNotification':
+                    this.showNotification(message.message, message.type || 'info');
+                    sendResponse({ success: true });
+                    return false;
+
                 default:
-                    sendResponse({ error: 'Acción no reconocida' });
+                    console.log('⚠️ Acción no reconocida:', message.action);
+                    sendResponse({ success: false, error: 'Acción no reconocida' });
+                    return false;
             }
         });
+
+        console.log('✅ Message listener configurado');
     }
 }
 
-// ================================
-// INICIALIZACIÓN
-// ================================
-
-let platformLicitacionDetector = null;
-
-// Esperar a que el DOM se cargue completamente
+// Inicializar detector cuando el DOM esté listo
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePlatformDetector);
+    document.addEventListener('DOMContentLoaded', () => {
+        window.platformLicitacionDetector = new PlatformLicitacionDetector();
+    });
 } else {
-    initializePlatformDetector();
+    window.platformLicitacionDetector = new PlatformLicitacionDetector();
 }
 
-function initializePlatformDetector() {
-    try {
-        platformLicitacionDetector = new PlatformLicitacionDetector();
-        console.log('✅ Platform Licitacion Detector inicializado');
-    } catch (error) {
-        console.error('❌ Error inicializando Platform Licitacion Detector:', error);
-    }
-}
-
-// Re-escanear cuando cambie la página (para SPAs)
-let lastUrl = location.href;
-new MutationObserver(() => {
-    const url = location.href;
-    if (url !== lastUrl) {
-        lastUrl = url;
-        console.log('📍 URL cambió, re-escaneando...');
-        
-        setTimeout(() => {
-            if (platformLicitacionDetector) {
-                platformLicitacionDetector.detectLicitacionesPage();
-            }
-        }, 1000);
-    }
-}).observe(document, { subtree: true, childList: true });
+console.log('✅ content-platform.js cargado completamente');

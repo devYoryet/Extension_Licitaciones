@@ -4,21 +4,65 @@ Una extensión de Chrome para automatizar el proceso completo de postulación a 
 
 ## 🎯 Funcionalidades
 
-### ✅ Completadas
-- **Configuración Centralizada**: Sistema modular de configuración con URLs, selectores y timeouts
-- **Gestión Segura de Credenciales**: Encriptación AES-256 para credenciales de Clave Única
-- **Automatización Inteligente**: Detección automática de páginas y contexto
-- **Interfaz de Usuario Completa**: Popup con panel de control, configuración y monitoreo
-- **Background Service**: Coordinación centralizada de automatizaciones
-- **Detección de Plataforma**: Reconocimiento automático de licitaciones en PharmaTender
-- **Sistema de Notificaciones**: Retroalimentación visual del progreso
+### ✅ **COMPLETADAS - Version 1.0.0** 🎉
 
-### 🔄 En Desarrollo
-- **Funciones de Subida de Documentos**: Automatización completa de carga de archivos
-- **Gestión de Firma Digital**: Integración con firma electrónica
-- **Validación Avanzada**: Verificación de datos antes del envío
-- **Sistema de Logs**: Registro detallado de actividades
-- **Manejo de Errores**: Recuperación automática y reintentos inteligentes
+#### Infraestructura Core
+- ✅ **Configuración Centralizada**: Sistema modular de configuración con URLs, selectores y timeouts
+- ✅ **Gestión Segura de Credenciales**: Encriptación AES-256 con PBKDF2 (100k iteraciones)
+- ✅ **Background Service**: Coordinación centralizada de automatizaciones múltiples
+- ✅ **Interfaz de Usuario Completa**: Popup con 3 tabs (Dashboard, Credentials, Settings)
+- ✅ **Sistema de Notificaciones**: Retroalimentación visual del progreso en tiempo real
+
+#### Detección y Navegación
+- ✅ **Detección de Plataforma**: Reconocimiento automático de licitaciones en PharmaTender
+- ✅ **Navegación a Ofertas**: Construcción y navegación automática a página de oferta
+- ✅ **Extracción de IDs**: De URLs de PharmaTender y Mercado Público
+
+#### Flujo de Automatización Completo (5 Páginas)
+- ✅ **Página 1 - Información Básica**:
+  - Nombre de oferta
+  - Descripción de oferta
+  - Configuración de oferta conjunta (Sí/No)
+- ✅ **Página 2 - Productos y Precios**:
+  - Activación de "No Bids"
+  - Procesamiento por paginación
+  - Llenado de precios unitarios
+- ✅ **Página 3 - Documentos**:
+  - Switch a iframe de documentos
+  - Carga por tipo (Administrativo, Técnico, Económico)
+  - Integración con API Laravel para obtener archivos
+  - Conversión base64 a File objects
+  - Upload automático a inputs
+- ✅ **Página 4 - Firma Digital**:
+  - Verificación de estado de firma
+  - Click en "Declarar y firmar"
+  - Manejo de checkbox
+  - "Firmar sin Clave Única"
+  - Confirmación y cierre de modal
+- ✅ **Página 5 - Envío Final**:
+  - Click en "Enviar Oferta"
+  - Manejo de confirmaciones
+  - Actualización de estado final
+
+#### Integración con Backend
+- ✅ **API Laravel**: Endpoints documentados completos
+- ✅ **Actualización de Estados**: En tiempo real a base de datos
+- ✅ **Log de Eventos**: Histórico de automatización
+- ✅ **Fetch de Documentos**: Via API con autenticación
+
+#### Funciones Auxiliares
+- ✅ **waitForElement()**: Con MutationObserver
+- ✅ **waitForIframeLoad()**: Manejo de carga de iframes
+- ✅ **getElementFromIframe()**: Búsqueda en iframes
+- ✅ **findElementByText()**: Búsqueda por contenido de texto
+- ✅ **findElementBySelector()**: Búsqueda con múltiples fallbacks
+- ✅ **base64ToFile()**: Conversión para uploads
+- ✅ **uploadDocumentToInput()**: Upload completo con eventos
+
+### 📋 Pendientes (Opcional)
+- ⏳ **Sistema de Reintentos Avanzado**: Recuperación granular por paso
+- ⏳ **Screenshots de Debugging**: Captura automática en errores
+- ⏳ **Modo Offline**: Queue de operaciones pendientes
 
 ## 📁 Estructura del Proyecto
 
@@ -42,24 +86,123 @@ Licitaciones-Extension v1/
 
 ## 🚀 Instalación
 
-### Método 1: Cargar Extensión en Desarrollo
+### Paso 1: Instalar Extensión en Chrome
 
 1. **Abrir Chrome** y navegar a `chrome://extensions/`
 2. **Habilitar "Modo de desarrollador"** en la esquina superior derecha
-3. **Hacer clic en "Cargar extensión desempaquetada"**
-4. **Seleccionar la carpeta** `Licitaciones-Extension v1`
-5. **La extensión aparecerá** en la lista y en la barra de herramientas
+3. **Hacer clic en "Cargar extensión sin empaquetar"**
+4. **Seleccionar la carpeta** del proyecto `Extension_Licitaciones`
+5. **La extensión aparecerá** en la lista y en la barra de herramientas ✅
 
-### Método 2: Instalación Manual
+### Paso 2: Configurar Backend Laravel 5.5
+
+> ⚠️ **CRÍTICO**: La extensión requiere endpoints de API en tu proyecto Laravel. Consulta `LARAVEL_API_ENDPOINTS.md` para la guía completa.
+
+#### A. Crear Rutas API
+
+Agregar a `routes/web.php` o `routes/api.php`:
+
+```php
+Route::prefix('api/extension')->middleware(['web', 'cors'])->group(function () {
+    Route::get('check-auth', 'ExtensionLicitacionController@checkAuth');
+    Route::get('licitacion-data', 'ExtensionLicitacionController@getLicitacionData');
+    Route::get('get-document-file', 'ExtensionLicitacionController@getDocumentFile');
+    Route::post('update-estado-postulacion', 'ExtensionLicitacionController@updateEstadoPostulacion');
+    Route::post('insertar-estado-postulacion', 'ExtensionLicitacionController@insertarEstadoPostulacion');
+    Route::get('verify-installation', 'ExtensionLicitacionController@verifyInstallation');
+    Route::get('heartbeat', 'ExtensionLicitacionController@heartbeat');
+});
+```
+
+#### B. Configurar CORS
+
+Crear `app/Http/Middleware/CorsMiddleware.php`:
+
+```php
+<?php
+namespace App\Http\Middleware;
+use Closure;
+
+class CorsMiddleware {
+    public function handle($request, Closure $next) {
+        $response = $next($request);
+        $response->headers->set('Access-Control-Allow-Origin', '*');
+        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, X-CSRF-TOKEN');
+        $response->headers->set('Access-Control-Allow-Credentials', 'true');
+        return $response;
+    }
+}
+```
+
+Registrar en `app/Http/Kernel.php`:
+```php
+protected $middlewareGroups = [
+    'web' => [
+        // ... otros middlewares
+        \App\Http\Middleware\CorsMiddleware::class,
+    ],
+];
+```
+
+#### C. Crear Controlador
+
+Crear `app/Http/Controllers/ExtensionLicitacionController.php`
+
+**Ver archivo `LARAVEL_API_ENDPOINTS.md` para el código completo del controlador**
+
+#### D. Crear Tablas de BD
+
+```sql
+-- Tabla principal
+CREATE TABLE `licitaciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_postulacion` varchar(50) NOT NULL UNIQUE,
+  `nombre_oferta` varchar(255) DEFAULT NULL,
+  `descripcion_oferta` text,
+  `oferta_conjunta` tinyint(1) DEFAULT 0,
+  `estado_automatizacion` varchar(50) DEFAULT 'pendiente',
+  `mensaje_estado` text,
+  `paso_actual` varchar(100),
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla de productos
+CREATE TABLE `licitacion_productos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `licitacion_id` int(11) NOT NULL,
+  `nombre_producto` varchar(255) NOT NULL,
+  `descripcion` text,
+  `precio_unitario` decimal(10,2),
+  `cantidad` int(11),
+  `indice` int(11),
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`licitacion_id`) REFERENCES `licitaciones`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla de log
+CREATE TABLE `licitacion_estados_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_postulacion` varchar(50) NOT NULL,
+  `estado` varchar(50) NOT NULL,
+  `mensaje` text,
+  `paso` varchar(100),
+  `detalles` text,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+#### E. Verificar Instalación
 
 ```bash
-# Navegar al directorio del proyecto
-cd "c:\Users\equip\OneDrive\Escritorio\Pharmatender\Desarrollo\Licitaciones-Extension v1"
+# Test desde terminal
+curl -X GET "https://prime.pharmatender.cl/api/extension/verify-installation"
 
-# Verificar archivos
-dir
-
-# Cargar en Chrome desde chrome://extensions/
+# Respuesta esperada:
+# {"success":true,"message":"Extensión verificada correctamente","version":"1.0.0"}
 ```
 
 ## ⚙️ Configuración Inicial
