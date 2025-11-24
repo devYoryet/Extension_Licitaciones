@@ -223,7 +223,7 @@ class PlatformLicitacionDetector {
                 button.style.opacity = '0.7';
             }
 
-            // Primero verificar credenciales
+            // 1. Primero verificar credenciales
             console.log('🔐 [PLATFORM] Verificando credenciales...');
             const credsCheck = await chrome.storage.local.get(['encryptedCredentials']);
 
@@ -244,20 +244,87 @@ class PlatformLicitacionDetector {
             console.log('✅ [PLATFORM] Credenciales encontradas');
 
             if (button) {
-                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Iniciando...</span>';
+                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Obteniendo datos del usuario...</span>';
             }
 
-            // Enviar mensaje al background script para iniciar automatización
-            console.log('📡 [PLATFORM] Enviando mensaje al background...');
+            // 2. Obtener datos del usuario desde /check-auth
+            console.log('👤 [PLATFORM] Obteniendo datos del usuario desde /check-auth...');
+
+            const authResponse = await fetch('https://prime.pharmatender.cl/api/extension/check-auth', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!authResponse.ok) {
+                throw new Error(`HTTP ${authResponse.status} al verificar autenticación`);
+            }
+
+            const authData = await authResponse.json();
+
+            if (!authData.authenticated) {
+                throw new Error('Usuario no autenticado');
+            }
+
+            console.log('✅ [PLATFORM] Datos de usuario obtenidos:', {
+                user: authData.user?.rut,
+                company: authData.company?.id
+            });
+
+            if (button) {
+                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Obteniendo datos de licitación...</span>';
+            }
+
+            // 3. Obtener datos de la licitación desde /licitacion-data-completa
+            console.log('📊 [PLATFORM] Obteniendo datos de licitación...');
+
+            const params = new URLSearchParams({
+                id_licitacion: this.currentLicitacionId,
+                rut_usuario: authData.company.rut,
+                company_id: authData.company.id.toString()
+            });
+
+            const licitacionResponse = await fetch(`https://prime.pharmatender.cl/api/extension/licitacion-data-completa?${params}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!licitacionResponse.ok) {
+                throw new Error(`HTTP ${licitacionResponse.status} al obtener datos de licitación`);
+            }
+
+            const licitacionData = await licitacionResponse.json();
+
+            if (!licitacionData.success) {
+                throw new Error(licitacionData.message || 'Error obteniendo datos de licitación');
+            }
+
+            console.log('✅ [PLATFORM] Datos de licitación obtenidos:', {
+                codigo: licitacionData.data.codigo_postulacion,
+                items: licitacionData.data.total_items,
+                documentos: licitacionData.data.total_documentos,
+                monto: licitacionData.data.monto_total
+            });
+
+            if (button) {
+                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Iniciando automatización...</span>';
+            }
+
+            // 4. Enviar mensaje al background script con TODOS los datos
+            console.log('📡 [PLATFORM] Enviando mensaje al background con todos los datos...');
 
             const response = await chrome.runtime.sendMessage({
                 action: 'startLicitacionAutomation',
                 licitacionId: this.currentLicitacionId,
-                licitacionData: {
-                    id: this.currentLicitacionId,
-                    url: window.location.href,
-                    nombre: `Licitación ${this.currentLicitacionId}`
-                }
+                licitacionData: licitacionData.data,
+                userData: authData
             });
 
             console.log('📨 [PLATFORM] Respuesta del background:', response);
@@ -301,7 +368,7 @@ class PlatformLicitacionDetector {
                 button.style.opacity = '1';
             }
 
-            this.showNotification('❌ Error de comunicación con la extensión', 'error');
+            this.showNotification('❌ ' + error.message, 'error');
         }
     }
 
