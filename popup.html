@@ -59,6 +59,45 @@
                     </div>
                 </div>
 
+                <!-- Current Licitacion Info -->
+                <div class="current-licitacion-info" id="currentLicitacionInfo" style="display:none;">
+                    <h3>Licitación Actual</h3>
+                    <div class="licitacion-card">
+                        <div class="licitacion-header">
+                            <span class="licitacion-code" id="licitacionCode">-</span>
+                            <span class="licitacion-badge" id="licitacionBadge">Detectada</span>
+                        </div>
+                        <div class="licitacion-body">
+                            <div class="info-row">
+                                <span class="info-label">📄 Código Postulación:</span>
+                                <span class="info-value" id="codigoPostulacion">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">📦 Total Items:</span>
+                                <span class="info-value" id="totalItems">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">📁 Documentos:</span>
+                                <span class="info-value" id="totalDocumentos">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">💰 Monto Total:</span>
+                                <span class="info-value" id="montoTotal">-</span>
+                            </div>
+                        </div>
+                        <div class="licitacion-actions">
+                            <button class="btn-small primary" id="startCurrentLicitacion">
+                                <span class="btn-icon">🚀</span>
+                                Iniciar Automatización
+                            </button>
+                            <button class="btn-small secondary" id="refreshLicitacionData">
+                                <span class="btn-icon">🔄</span>
+                                Actualizar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="current-automations">
                     <h3>Automatizaciones en Curso</h3>
                     <div id="automationsList" class="automations-list">
@@ -100,33 +139,46 @@
 
                     <form id="credentialsForm" class="form">
                         <div class="form-group">
-                            <label for="rut">RUT</label>
-                            <input 
-                                type="text" 
-                                id="rut" 
-                                name="rut" 
+                            <label for="rut">RUT Usuario (Mercado Público)</label>
+                            <input
+                                type="text"
+                                id="rut"
+                                name="rut"
                                 placeholder="12345678-9"
                                 pattern="[0-9]+-[0-9kK]{1}"
                                 required
                             >
-                            <small class="form-help">Formato: 12345678-9</small>
+                            <small class="form-help">Tu RUT para login en Mercado Público</small>
                         </div>
 
                         <div class="form-group">
-                            <label for="password">Clave</label>
+                            <label for="password">Contraseña (Mercado Público)</label>
                             <div class="password-input">
-                                <input 
-                                    type="password" 
-                                    id="password" 
-                                    name="password" 
-                                    placeholder="Tu clave de acceso"
+                                <input
+                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    placeholder="Tu contraseña"
                                     required
                                 >
                                 <button type="button" class="password-toggle" id="passwordToggle">
                                     👁️
                                 </button>
                             </div>
-                            <small class="form-help">Clave de tu cuenta Clave Única</small>
+                            <small class="form-help">Contraseña de tu cuenta Mercado Público</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="rutRepresentante">RUT Representante Legal</label>
+                            <input
+                                type="text"
+                                id="rutRepresentante"
+                                name="rutRepresentante"
+                                placeholder="12345678-9"
+                                pattern="[0-9]+-[0-9kK]{1}"
+                                required
+                            >
+                            <small class="form-help">RUT del representante legal de la empresa</small>
                         </div>
 
                         <div class="form-actions">
