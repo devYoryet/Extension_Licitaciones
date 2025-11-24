@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmaTender - Licitaciones</title>
+    <link rel="stylesheet" href="popup-styles.css">
+</head>
+<body>
+    <div class="popup-container">
+        <!-- Header -->
+        <header class="popup-header">
+            <div class="logo-container">
+                <img src="icons/icon48.png" alt="PharmaTender" class="logo">
+                <div class="header-text">
+                    <h1>PharmaTender</h1>
+                    <p>Automatización de Licitaciones</p>
+                </div>
+            </div>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Desconectado</span>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tab-navigation">
+            <button class="tab-button active" data-tab="dashboard">
+                <span class="tab-icon">📊</span>
+                Panel
+            </button>
+            <button class="tab-button" data-tab="credentials">
+                <span class="tab-icon">🔑</span>
+                Credenciales
+            </button>
+            <button class="tab-button" data-tab="settings">
+                <span class="tab-icon">⚙️</span>
+                Config
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="popup-content">
+            
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-content active">
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="activeAutomations">0</div>
+                        <div class="stat-label">Activas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="completedToday">0</div>
+                        <div class="stat-label">Completadas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="errorCount">0</div>
+                        <div class="stat-label">Errores</div>
+                    </div>
+                </div>
+
+                <div class="current-automations">
+                    <h3>Automatizaciones en Curso</h3>
+                    <div id="automationsList" class="automations-list">
+                        <div class="empty-state">
+                            <span class="empty-icon">🤖</span>
+                            <p>No hay automatizaciones activas</p>
+                            <small>Visita prime.pharmatender.cl para iniciar</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <h3>Acciones Rápidas</h3>
+                    <div class="action-buttons">
+                        <button class="action-btn primary" id="openPharmaTender">
+                            <span class="btn-icon">🌐</span>
+                            Abrir PharmaTender
+                        </button>
+                        <button class="action-btn secondary" id="refreshStatus">
+                            <span class="btn-icon">🔄</span>
+                            Actualizar Estado
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Credentials Tab -->
+            <section id="credentials" class="tab-content">
+                <div class="credentials-form">
+                    <h3>Configurar Credenciales</h3>
+                    <p class="form-description">
+                        Ingresa tus credenciales de Clave Única para automatizar el login
+                    </p>
+
+                    <div class="credential-status" id="credentialStatus">
+                        <span class="status-icon">❓</span>
+                        <span class="status-message">Verificando credenciales...</span>
+                    </div>
+
+                    <form id="credentialsForm" class="form">
+                        <div class="form-group">
+                            <label for="rut">RUT</label>
+                            <input 
+                                type="text" 
+                                id="rut" 
+                                name="rut" 
+                                placeholder="12345678-9"
+                                pattern="[0-9]+-[0-9kK]{1}"
+                                required
+                            >
+                            <small class="form-help">Formato: 12345678-9</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Clave</label>
+                            <div class="password-input">
+                                <input 
+                                    type="password" 
+                                    id="password" 
+                                    name="password" 
+                                    placeholder="Tu clave de acceso"
+                                    required
+                                >
+                                <button type="button" class="password-toggle" id="passwordToggle">
+                                    👁️
+                                </button>
+                            </div>
+                            <small class="form-help">Clave de tu cuenta Clave Única</small>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn secondary" id="testCredentials">
+                                <span class="btn-icon">🧪</span>
+                                Probar Conexión
+                            </button>
+                            <button type="submit" class="btn primary">
+                                <span class="btn-icon">💾</span>
+                                Guardar
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="security-notice">
+                        <div class="notice-icon">🔒</div>
+                        <div class="notice-content">
+                            <strong>Seguridad:</strong>
+                            <p>Las credenciales se cifran localmente usando AES-256 y nunca se envían a servidores externos.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings" class="tab-content">
+                <div class="settings-form">
+                    <h3>Configuración</h3>
+
+                    <div class="settings-section">
+                        <h4>Automatización</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Login Automático</label>
+                                <small>Iniciar sesión automáticamente al detectar páginas de login</small>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="autoLogin" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Timeout (segundos)</label>
+                                <small>Tiempo máximo de espera para operaciones</small>
+                            </div>
+                            <input 
+                                type="number" 
+                                id="timeout" 
+                                value="30" 
+                                min="10" 
+                                max="120"
+                                class="setting-input"
+                            >
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Reintentos</label>
+                                <small>Número de reintentos en caso de error</small>
+                            </div>
+                            <input 
+                                type="number" 
+                                id="retryAttempts" 
+                                value="3" 
+                                min="1" 
+                                max="5"
+                                class="setting-input"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>Notificaciones</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Notificaciones del Sistema</label>
+                                <small>Mostrar notificaciones cuando se completen procesos</small>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="notificaciones" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>Avanzado</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <label>Modo Debug</label>
+                                <small>Mostrar información detallada en la consola</small>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="debugMode">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button type="button" class="btn secondary" id="resetSettings">
+                            <span class="btn-icon">🔄</span>
+                            Restaurar por Defecto
+                        </button>
+                        <button type="button" class="btn primary" id="saveSettings">
+                            <span class="btn-icon">💾</span>
+                            Guardar Configuración
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="popup-footer">
+            <div class="footer-info">
+                <span>PharmaTender Extension v1.0</span>
+                <a href="#" id="showLogs" class="footer-link">Ver Logs</a>
+            </div>
+        </footer>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p id="loadingMessage">Procesando...</p>
+            </div>
+        </div>
+
+        <!-- Notification Container -->
+        <div id="notificationContainer" class="notification-container"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="popup.js"></script>
+</body>
+</html>

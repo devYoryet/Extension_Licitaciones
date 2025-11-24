@@ -1,0 +1,94 @@
+{
+  "manifest_version": 3,
+  "name": "Pharmatender",
+  "version": "1.0.5",
+  "description": "Automatización postulación CA en PharmaTender",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
+    "notifications",
+    "downloads",
+    "unlimitedStorage"
+  ],
+  
+  "host_permissions": [
+    "https://prime.pharmatender.cl/*",
+    "https://www.mercadopublico.cl/*",
+    "https://heimdall.mercadopublico.cl/*",
+    "https://accounts.claveunica.gob.cl/*",
+    "https://auth.mercadopublico.cl/*",
+    "https://compra-agil.mercadopublico.cl/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": [
+        "https://prime.pharmatender.cl/*"
+      ],
+      "js": [
+        "config.js",
+        "security-utils.js",
+        "content-platform.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://www.mercadopublico.cl/*",
+        "https://heimdall.mercadopublico.cl/*", 
+        "https://accounts.claveunica.gob.cl/*",
+        "https://auth.mercadopublico.cl/*"
+      ],
+      "js": [
+        "config.js",
+        "security-utils.js",
+        "content-mercadopublico.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://compra-agil.mercadopublico.cl/*"
+      ],
+      "js": [
+        "config.js",
+        "security-utils.js",
+        "content-compraagil.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MP PHT Automation",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png", 
+    "128": "icons/icon128.png"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "config.js", "security-utils.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

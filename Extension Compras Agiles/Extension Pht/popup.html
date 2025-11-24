@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 420px;
+            min-height: 600px;
+            max-height: 600px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .extension-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pharmatender-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #FF6B6B, #FF8E8E);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            color: white;
+            box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
+        }
+
+        .brand-info h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 2px;
+        }
+
+        .brand-info span {
+            font-size: 11px;
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .power-toggle {
+            position: relative;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #e74c3c;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-switch.active {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            box-shadow: 0 1px 6px rgba(39, 174, 96, 0.3);
+        }
+
+        .status-indicator {
+            width: 6px;
+            height: 6px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .main-content {
+            padding: 0;
+            background: white;
+            height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        /* COTIZACIÓN HEADER MEJORADO */
+        .cotization-card {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            padding: 16px;
+            margin: 0;
+            position: relative;
+        }
+
+        .cotization-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .cotization-id {
+            font-size: 15px;
+            font-weight: 700;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .cotization-amount {
+            background: rgba(255, 255, 255, 0.25);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .cotization-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 8px 12px;
+            font-size: 11px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .detail-label {
+            opacity: 0.85;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        /* ITEMS SECTION MEJORADA */
+        .items-section {
+            padding: 16px;
+            background: #f8fafc;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .items-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        /* CARDS DE ITEMS COMPLETAMENTE REDISEÑADAS */
+        .item-card-professional {
+            background: white;
+            border-radius: 12px;
+            padding: 0;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .item-card-professional:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+            border-color: #6366f1;
+        }
+
+        .item-card-default {
+            background: white;
+            border-radius: 12px;
+            padding: 0;
+            border: 2px dashed #cbd5e1;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .item-card-default:hover {
+            transform: translateY(-1px);
+            border-color: #94a3b8;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        /* HEADER DE ITEMS CON BORDE LATERAL ESPECÍFICO */
+        .item-header-professional {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            border-left: 4px solid #4f46e5;
+        }
+
+        .item-header-default {
+            background: linear-gradient(135deg, #64748b, #475569);
+            color: white;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #374151;
+        }
+
+        .item-number-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            font-family: 'SF Mono', monospace;
+            backdrop-filter: blur(10px);
+        }
+
+        .default-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            backdrop-filter: blur(10px);
+        }
+
+        .item-status-badge {
+            background: rgba(34, 197, 94, 0.9);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .default-status {
+            background: rgba(148, 163, 184, 0.9);
+            color: white;
+        }
+
+        /* GRID DE DETALLES MEJORADO */
+        .item-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            padding: 12px;
+            background: #f8fafc;
+        }
+
+        .item-detail {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .detail-label-pro {
+            display: block;
+            font-size: 9px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .detail-value-pro {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .detail-value-currency {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: #059669;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .detail-value-total {
+            display: block;
+            font-size: 14px;
+            font-weight: 800;
+            color: #1d4ed8;
+            font-family: 'SF Mono', monospace;
+        }
+
+        /* DESCRIPCIÓN MEJORADA */
+        .item-description-professional {
+            font-size: 11px;
+            color: #475569;
+            line-height: 1.5;
+            background: white;
+            padding: 12px;
+            border-top: 1px solid #e2e8f0;
+            min-height: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /* SUMMARY SIMPLIFICADO */
+        .summary-section {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* BADGE DE RESUMEN DE ITEMS INTEGRADO */
+        .items-summary-badge {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .summary-number {
+            font-weight: 700;
+            font-size: 13px;
+            color: white;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .summary-text {
+            font-weight: 500;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.85);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .summary-divider {
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .action-button {
+            width: 100%;
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+        }
+
+        .action-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* ESTADOS Y OTROS ELEMENTOS */
+        .manual-input-section {
+            padding: 16px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        .manual-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: 'SF Mono', monospace;
+            transition: all 0.2s ease;
+            margin-bottom: 6px;
+        }
+
+        .manual-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-help {
+            font-size: 10px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        .no-data-state {
+            text-align: center;
+            padding: 24px 16px;
+            color: #64748b;
+        }
+
+        .no-data-icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+
+        .no-data-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #374151;
+        }
+
+        .no-data-subtitle {
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .error-state {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 16px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .footer-info {
+            padding: 10px 16px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 10px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* SCROLLBAR */
+        .main-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .main-content::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        .main-content::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .main-content::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 450px) {
+            body {
+                width: 100%;
+                min-width: 380px;
+            }
+            
+            .summary-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            
+            .item-details-grid {
+                gap: 8px;
+                padding: 10px;
+            }
+        }
+
+        /* MODAL CREDENCIALES */
+        .credentials-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 340px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 6px;
+        }
+
+        .modal-subtitle {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-secondary, .btn-primary {
+            flex: 1;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .modal-help {
+            margin-top: 12px;
+            padding: 8px;
+            background: #f0f9ff;
+            border-radius: 8px;
+            border-left: 3px solid #0ea5e9;
+        }
+
+        .help-text {
+            font-size: 11px;
+            color: #0369a1;
+        }
+
+        /* CREDENCIALES MANAGEMENT */
+        .credentials-management {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .credentials-info {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .credential-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .credential-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .credential-value {
+            font-size: 12px;
+            color: #6366f1;
+            font-family: 'SF Mono', monospace;
+            font-weight: 600;
+        }
+
+        .credential-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-edit, .btn-delete {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-edit {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .btn-edit:hover {
+            background: #bfdbfe;
+        }
+
+        .btn-delete {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .btn-delete:hover {
+            background: #fecaca;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="extension-header">
+        <div class="header-top">
+            <div class="logo-section">
+                <div class="pharmatender-logo">P</div>
+                <div class="brand-info">
+                    <h1>PharmaTender</h1>
+                    <span>Automation Suite v1.0</span>
+                </div>
+            </div>
+            <div class="power-toggle">
+                <div class="toggle-switch active" id="powerToggle"></div>
+            </div>
+        </div>
+        <div class="status-badge">
+            <div class="status-indicator"></div>
+            Sistema Activo
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Cotización Card -->
+        <div class="cotization-card" id="cotizationCard" style="display: none;">
+            <div class="cotization-header">
+                <div class="cotization-id" id="cotizationId">Cargando...</div>
+                <div class="cotization-amount" id="cotizationTotal">$0</div>
+            </div>
+            <div class="cotization-details">
+                <div class="detail-row">
+                    <span class="detail-label">Cliente:</span>
+                    <span class="detail-value" id="clientName">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Usuario:</span>
+                    <span class="detail-value" id="userName">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Organización:</span>
+                    <span class="detail-value" id="orgName">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Vencimiento:</span>
+                    <span class="detail-value" id="dueDate">-</span>
+                </div>
+            </div>
+            <!-- AGREGAR ESTA SECCIÓN NUEVA -->
+            <div class="items-summary-badge" id="itemsSummaryBadge" style="display: none;">
+                <div class="summary-item">
+                    <span class="summary-number" id="totalItemsCount">0</span>
+                    <span class="summary-text">Total Items</span>
+                </div>
+                <div class="summary-divider">•</div>
+                <div class="summary-item">
+                    <span class="summary-number" id="specificItemsCount">0</span>
+                    <span class="summary-text">Específicos</span>
+                </div>
+                <div class="summary-divider">•</div>
+                <div class="summary-item">
+                    <span class="summary-number" id="defaultItemsCount">0</span>
+                    <span class="summary-text">Default</span>
+                </div>
+            </div>
+            <!-- FIN SECCIÓN NUEVA -->
+            <!-- Items Summary Badge integrado en el header -->
+            <div class="items-summary-badge" id="itemsSummaryBadge" style="display: none;">
+                <div class="summary-item">
+                    <span class="summary-number" id="totalItemsCount">0</span>
+                    <span class="summary-text">Total Items</span>
+                </div>
+                <div class="summary-divider">•</div>
+                <div class="summary-item">
+                    <span class="summary-number" id="specificItemsCount">0</span>
+                    <span class="summary-text">Específicos</span>
+                </div>
+                <div class="summary-divider">•</div>
+                <div class="summary-item">
+                    <span class="summary-number" id="defaultItemsCount">0</span>
+                    <span class="summary-text">Default</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Section -->
+        <div class="items-section" id="itemsSection">
+            <div class="section-title">
+                📊 Items de Cotización
+            </div>
+            <div class="items-grid" id="itemsGrid">
+                <!-- Los items se cargan dinámicamente desde el endpoint -->
+            </div>
+        </div>
+
+        <!-- Summary Section -->
+        <div class="summary-section" id="summarySection" style="display: none;">
+            <button class="action-button" id="actionButton">
+                🚀 Iniciar Automatización
+            </button>
+        </div>
+
+        <!-- Input Manual de Compra Ágil -->
+        <div class="manual-input-section" id="manualInputSection" style="display: none;">
+            <div class="section-title">
+                🎯 Compra Ágil Manual
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label class="input-label">
+                    ID de Cotización (Opcional)
+                </label>
+                <input 
+                    type="text" 
+                    id="manualCompraAgilId" 
+                    class="manual-input"
+                    placeholder="Ej: 3740-111-COT25"
+                >
+                <div class="input-help">
+                    Si no ingresas nada, solo se hará el login normal
+                </div>
+            </div>
+            
+            <button class="action-button" id="actionButtonManual">
+                🚀 Iniciar Login MP
+            </button>
+        </div>
+
+        <!-- No Data State -->
+        <div class="no-data-state" id="noDataState" style="display: none;">
+            <div class="no-data-icon">📋</div>
+            <div class="no-data-title">No hay cotización detectada</div>
+            <div class="no-data-subtitle">
+                Navega a una página de Compra Ágil para ver los datos de automatización
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-state" id="errorState" style="display: none;">
+            <strong>⚠️ Error de conexión</strong><br>
+            No se pudo conectar con PharmaTender
+        </div>
+
+        <!-- Credentials Management -->
+        <div class="credentials-management" id="credentialsManagement">
+            <div class="section-title">🔐 Gestión de Credenciales</div>
+            <div class="credentials-info">
+                <div class="credential-item">
+                    <span class="credential-label">Usuario MP:</span>
+                    <span class="credential-value" id="currentUsername">No configurado</span>
+                </div>
+                <div class="credential-actions">
+                    <button class="btn-edit" id="editCredentialsBtn">
+                        ✏️ Editar
+                    </button>
+                    <button class="btn-delete" id="deleteCredentialsBtn">
+                        🗑️ Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Credentials Modal -->
+    <div class="credentials-modal" id="credentialsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">🔐 Credenciales MP</div>
+                <div class="modal-subtitle">Ingresa tus datos de Mercado Público</div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">RUT (sin puntos ni guión)</label>
+                <input type="text" class="form-input" id="mpUsername" placeholder="123456789">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Contraseña</label>
+                <input type="password" class="form-input" id="mpPassword" placeholder="Tu contraseña de MP">
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-secondary" id="cancelCredentials">Cancelar</button>
+                <button class="btn-primary" id="saveCredentials">
+                    💾 Guardar Credenciales
+                </button>
+            </div>
+            
+            <div class="modal-help">
+                <div class="help-text">
+                    💡 <strong>Tip:</strong> Deja la contraseña vacía para mantener la actual
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer-info">
+        Desarrollado con ❤️ para PharmaTender • Versión 1.0.3
+    </div>
+
+   
+    <script src="config.js"></script>
+    <script src="security-utils.js"></script>
+    <script src="popup.js"></script>
+

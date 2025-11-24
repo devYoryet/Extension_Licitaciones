@@ -1,0 +1,457 @@
+// background.js - Service Worker simple para la extensión
+
+console.log('🔧 MP Automation Background Service iniciado');
+
+class SimpleBackgroundService {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        console.log('✅ Background Service configurado');
+    }
+
+    setupEventListeners() {
+        // Instalación de la extensión
+        if (chrome.runtime.onInstalled) {
+            chrome.runtime.onInstalled.addListener((details) => {
+                this.handleInstallation(details);
+            });
+        }
+
+        // Mensajes desde content scripts y popup
+        if (chrome.runtime.onMessage) {
+            chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+                this.handleMessage(request, sender, sendResponse);
+                return true; // Respuesta asíncrona
+            });
+        }
+
+        // Cambios de pestañas
+        if (chrome.tabs && chrome.tabs.onUpdated) {
+            chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+                this.handleTabUpdate(tabId, changeInfo, tab);
+            });
+        }
+    }
+
+    handleInstallation(details) {
+        console.log('📦 Extensión instalada/actualizada:', details.reason);
+        
+        if (details.reason === 'install') {
+            this.showWelcomeNotification();
+        }
+    }
+
+    showWelcomeNotification() {
+        if (chrome.notifications) {
+            chrome.notifications.create('welcome', {
+                type: 'basic',
+                title: 'MP Login Automation',
+                message: '¡Extensión instalada! Inicia sesión en PharmaTender para comenzar.'
+            });
+        }
+    }
+
+    async handleMessage(request, sender, sendResponse) {
+    try {
+        switch (request.action) {
+            // ✅ AGREGAR/VERIFICAR este case para 'ping'
+            case 'ping':
+                sendResponse({ 
+                    success: true, 
+                    message: 'Background script activo',
+                    timestamp: Date.now()
+                });
+                break;
+             // ✅ NUEVO: Handler para peticiones API
+            case 'API_REQUEST':
+                console.log('🌐 Background: Procesando petición API...', request);
+                const apiResult = await this.handleApiRequest(request);
+                sendResponse(apiResult);
+                break;
+
+            case 'checkExtensionStatus':
+                const status = await this.getExtensionStatus();
+                sendResponse(status);
+                break;
+
+            case 'activateExtension':
+                await this.autoActivateExtension();
+                sendResponse({ success: true, message: 'Extensión activada' });
+                break;
+
+            case 'openPopup':
+                console.log('📱 Solicitud de abrir popup desde content script');
+                sendResponse({ success: true });
+                break;
+
+            case 'checkConnection':
+                const result = await this.checkPlatformConnection(request.platformUrl);
+                sendResponse(result);
+                break;
+
+            case 'logActivity':
+                this.logActivity(request.message, request.type);
+                sendResponse({ success: true });
+                break;
+
+            // ✅ CRÍTICO: Handler para downloadDocument
+            case 'downloadDocument':
+                console.log('📥 Background: Iniciando descarga de documento...');
+                const downloadResult = await this.downloadDocumentFromPlatform(request.url);
+                sendResponse(downloadResult);
+                break;
+
+            case 'showNotification':
+                this.showNotification(request.title, request.message);
+                sendResponse({ success: true });
+                break;
+           
+            default:
+                console.warn('⚠️ Acción no reconocida:', request.action);
+                sendResponse({ success: false, error: 'Acción no reconocida: ' + request.action });
+        }
+    } catch (error) {
+        console.error('❌ Error manejando mensaje en background:', error);
+        sendResponse({ success: false, error: error.message });
+    }
+}
+
+/**
+ * ✅ NUEVO MÉTODO: Manejar peticiones API
+ */
+async handleApiRequest(request) {
+    try {
+        console.log('🌐 Procesando API Request:', {
+            url: request.url,
+            method: request.method,
+            data: request.data
+        });
+
+        const requestOptions = {
+            method: request.method || 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        };
+
+        // Agregar body para POST/PUT
+        if (request.method === 'POST' || request.method === 'PUT') {
+            requestOptions.body = JSON.stringify(request.data);
+        }
+
+        console.log('📡 Enviando fetch request:', request.url);
+        
+        const response = await fetch(request.url, requestOptions);
+        
+        console.log('📨 Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        console.log('✅ API Response exitosa:', data);
+        
+        return {
+            success: true,
+            data: data,
+            status: response.status
+        };
+
+    } catch (error) {
+        console.error('❌ Error en API Request:', error);
+        
+        return {
+            success: false,
+            error: error.message,
+            details: {
+                url: request.url,
+                method: request.method,
+                originalError: error.toString()
+            }
+        };
+    }
+}
+    // *** NUEVO MÉTODO: Descargar documento desde platform ***
+    async downloadDocumentFromPlatform(documentUrl) {
+    try {
+        console.log('📥 Background: Descargando documento desde:', documentUrl);
+        
+        // ✅ VALIDAR URL antes de hacer fetch
+        try {
+            new URL(documentUrl); // Validar que es una URL válida
+        } catch (urlError) {
+            console.error('❌ Background: URL inválida:', documentUrl);
+            return {
+                success: false,
+                error: `URL inválida: ${documentUrl}`
+            };
+        }
+        
+        // ✅ AGREGAR timeout y mejores headers
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+        
+        const response = await fetch(documentUrl, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'User-Agent': 'PharmaTender-Extension/1.0'
+            },
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log(`📡 Background: Response status: ${response.status}`);
+        console.log(`📡 Background: Response headers:`, Object.fromEntries(response.headers.entries()));
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Background: Error HTTP ${response.status}:`, errorText);
+            
+            return {
+                success: false,
+                error: `Error HTTP: ${response.status} - ${response.statusText}`,
+                details: errorText
+            };
+        }
+
+        // ✅ VALIDAR Content-Type
+        const contentType = response.headers.get('Content-Type') || '';
+        console.log(`📡 Background: Content-Type: ${contentType}`);
+        
+        if (!contentType.includes('application/json')) {
+            console.warn('⚠️ Background: Response no es JSON, intentando parsear anyway...');
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            console.error('❌ Background: Error parseando JSON:', parseError);
+            const textResponse = await response.text();
+            return {
+                success: false,
+                error: 'Respuesta no es JSON válido',
+                details: textResponse.substring(0, 500) // Primeros 500 caracteres
+            };
+        }
+        
+        console.log('✅ Background: Documento descargado exitosamente');
+        console.log('📊 Background: Estructura de respuesta:', {
+            success: data.success,
+            hasArchivo: !!data.archivo,
+            archivoKeys: data.archivo ? Object.keys(data.archivo) : null
+        });
+        
+        return {
+            success: true,
+            data: data
+        };
+
+    } catch (error) {
+        console.error('❌ Background: Error descargando documento:', error);
+        
+        let errorMessage = error.message;
+        
+        // ✅ MANEJAR diferentes tipos de errores
+        if (error.name === 'AbortError') {
+            errorMessage = 'Timeout descargando documento (30s)';
+        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = 'Error de red - Verificar conexión';
+        } else if (error.message.includes('CORS')) {
+            errorMessage = 'Error CORS - Verificar permisos';
+        }
+        
+        return {
+            success: false,
+            error: errorMessage,
+            details: error.stack
+        };
+    }
+}
+async debugRequest(url) {
+    console.log('🐛 DEBUG: Probando request a:', url);
+    
+    try {
+        const response = await fetch(url, {
+            method: 'HEAD', // Solo headers, no descargar contenido
+            credentials: 'include'
+        });
+        
+        console.log('🐛 DEBUG: Response status:', response.status);
+        console.log('🐛 DEBUG: Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        return {
+            status: response.status,
+            headers: Object.fromEntries(response.headers.entries()),
+            ok: response.ok
+        };
+        
+    } catch (error) {
+        console.error('🐛 DEBUG: Error en request:', error);
+        return {
+            error: error.message
+        };
+    }
+}
+    async checkPlatformConnection(platformUrl) {
+        try {
+            // Verificar conectividad básica
+            const response = await fetch(`${platformUrl}/api/extension/ping`, {
+                method: 'GET',
+                mode: 'cors'
+            });
+
+            return {
+                success: response.ok,
+                status: response.status,
+                message: response.ok ? 'Conexión exitosa' : 'Error de conexión'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    handleTabUpdate(tabId, changeInfo, tab) {
+        if (changeInfo.status === 'complete' && tab.url) {
+            this.analyzeTab(tab);
+        }
+    }
+
+    analyzeTab(tab) {
+        try {
+            const url = new URL(tab.url);
+            
+            // Detectar páginas relevantes y actualizar badge
+            if (url.hostname.includes('pharmatender.cl') || url.hostname === 'localhost') {
+                this.updateBadge(tab.id, '🏢', '#28a745', 'PharmaTender detectado');
+            } else if (url.hostname.includes('mercadopublico.cl')) {
+                this.updateBadge(tab.id, '🏛️', '#17a2b8', 'Mercado Público detectado');
+            } else if (url.hostname.includes('claveunica.gob.cl')) {
+                this.updateBadge(tab.id, '🗝️', '#ffc107', 'Clave Única detectado');
+            } else {
+                this.clearBadge(tab.id);
+            }
+        } catch (error) {
+            console.warn('Error analizando pestaña:', error);
+        }
+    }
+
+    async updateBadge(tabId, text, color, title) {
+        try {
+            if (chrome.action) {
+                await chrome.action.setBadgeText({ text, tabId });
+                await chrome.action.setBadgeBackgroundColor({ color, tabId });
+                await chrome.action.setTitle({ title, tabId });
+            }
+        } catch (error) {
+            console.warn('Error actualizando badge:', error);
+        }
+    }
+
+    async clearBadge(tabId) {
+        try {
+            if (chrome.action) {
+                await chrome.action.setBadgeText({ text: '', tabId });
+                await chrome.action.setTitle({ title: 'MP Login Automation', tabId });
+            }
+        } catch (error) {
+            console.warn('Error limpiando badge:', error);
+        }
+    }
+
+    logActivity(message, type = 'info') {
+        const timestamp = new Date().toISOString();
+        console.log(`📝 [${timestamp}] ${type.toUpperCase()}: ${message}`);
+        
+        // Guardar logs importantes en storage
+        if (type === 'error' || type === 'success') {
+            this.saveLogToStorage(message, type, timestamp);
+        }
+    }
+
+    async saveLogToStorage(message, type, timestamp) {
+        try {
+            if (chrome.storage && chrome.storage.local) {
+                const result = await chrome.storage.local.get(['activityLog']);
+                const logs = result.activityLog || [];
+                
+                logs.push({ message, type, timestamp });
+                
+                // Mantener solo los últimos 50 logs
+                if (logs.length > 50) {
+                    logs.splice(0, logs.length - 50);
+                }
+                
+                await chrome.storage.local.set({ activityLog: logs });
+            }
+        } catch (error) {
+            console.warn('Error guardando log:', error);
+        }
+    }
+
+    showNotification(title, message, type = 'basic') {
+        if (chrome.notifications) {
+            const notificationId = `notification_${Date.now()}`;
+            
+            chrome.notifications.create(notificationId, {
+                type: 'basic',
+                title: title,
+                message: message
+            });
+            
+            // Auto-clear después de 5 segundos
+            setTimeout(() => {
+                chrome.notifications.clear(notificationId);
+            }, 5000);
+        }
+    }
+
+    // Cleanup periódico
+    async performMaintenance() {
+        console.log('🧹 Ejecutando mantenimiento...');
+        
+        try {
+            // Limpiar storage antiguo
+            if (chrome.storage && chrome.storage.local) {
+                const result = await chrome.storage.local.get(['activityLog']);
+                const logs = result.activityLog || [];
+                
+                // Eliminar logs más antiguos de 24 horas
+                const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+                const filteredLogs = logs.filter(log => {
+                    return new Date(log.timestamp).getTime() > oneDayAgo;
+                });
+                
+                if (filteredLogs.length !== logs.length) {
+                    await chrome.storage.local.set({ activityLog: filteredLogs });
+                    console.log(`🗑️ Eliminados ${logs.length - filteredLogs.length} logs antiguos`);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error en mantenimiento:', error);
+        }
+    }
+}
+
+// Inicializar service worker
+const backgroundService = new SimpleBackgroundService();
+
+// Ejecutar mantenimiento cada hora
+setInterval(() => {
+    backgroundService.performMaintenance();
+}, 60 * 60 * 1000);
