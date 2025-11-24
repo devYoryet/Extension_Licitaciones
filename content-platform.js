@@ -104,10 +104,18 @@ class PlatformLicitacionDetector {
     }
 
     addAutomationButton() {
-        // Evitar duplicados
+        // Remover cualquier botón o indicador existente primero
         const existingButton = document.getElementById('pht-automation-btn');
+        const existingIndicator = document.getElementById('pht-info-indicator');
+
         if (existingButton) {
-            return;
+            existingButton.remove();
+            console.log('🗑️ Botón anterior removido');
+        }
+
+        if (existingIndicator) {
+            existingIndicator.remove();
+            console.log('🗑️ Indicador anterior removido');
         }
 
         const button = document.createElement('button');
@@ -138,8 +146,10 @@ class PlatformLicitacionDetector {
         `;
 
         button.addEventListener('mouseenter', () => {
-            button.style.transform = 'translateY(-4px) scale(1.05)';
-            button.style.boxShadow = '0 12px 28px rgba(102, 126, 234, 0.6)';
+            if (!button.disabled) {
+                button.style.transform = 'translateY(-4px) scale(1.05)';
+                button.style.boxShadow = '0 12px 28px rgba(102, 126, 234, 0.6)';
+            }
         });
 
         button.addEventListener('mouseleave', () => {
@@ -156,7 +166,7 @@ class PlatformLicitacionDetector {
     }
 
     addInfoIndicator() {
-        // Evitar duplicados
+        // No agregar si ya existe
         const existingIndicator = document.getElementById('pht-info-indicator');
         if (existingIndicator) {
             return;
@@ -202,42 +212,23 @@ class PlatformLicitacionDetector {
 
     async startLicitacionAutomation() {
         try {
-            console.log('🚀 Iniciando automatización para licitación:', this.currentLicitacionId);
+            console.log('🚀 [PLATFORM] Iniciando automatización para licitación:', this.currentLicitacionId);
 
             // Actualizar botón
             const button = document.getElementById('pht-automation-btn');
             if (button) {
                 button.disabled = true;
-                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Iniciando...</span>';
+                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Verificando credenciales...</span>';
                 button.style.cursor = 'not-allowed';
                 button.style.opacity = '0.7';
             }
 
-            // Enviar mensaje al background script para iniciar automatización
-            const response = await chrome.runtime.sendMessage({
-                action: 'startLicitacionAutomation',
-                licitacionId: this.currentLicitacionId,
-                licitacionData: {
-                    id: this.currentLicitacionId,
-                    url: window.location.href
-                }
-            });
+            // Primero verificar credenciales
+            console.log('🔐 [PLATFORM] Verificando credenciales...');
+            const credsCheck = await chrome.storage.local.get(['encryptedCredentials']);
 
-            console.log('📨 Respuesta del background:', response);
-
-            if (response && response.success) {
-                console.log('✅ Automatización iniciada exitosamente');
-
-                if (button) {
-                    button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100())';
-                    button.innerHTML = '<span style="margin-right: 8px;">✅</span><span>Automatización Iniciada</span>';
-                }
-
-                this.showNotification('✅ Automatización iniciada correctamente', 'success');
-
-            } else {
-                const errorMsg = response?.error || 'Error desconocido';
-                console.error('❌ Error iniciando automatización:', errorMsg);
+            if (!credsCheck.encryptedCredentials) {
+                console.error('❌ [PLATFORM] No hay credenciales guardadas');
 
                 if (button) {
                     button.disabled = false;
@@ -246,11 +237,61 @@ class PlatformLicitacionDetector {
                     button.style.opacity = '1';
                 }
 
-                this.showNotification('❌ Error: ' + errorMsg, 'error');
+                this.showNotification('⚠️ Debes guardar credenciales primero en el popup', 'warning');
+                return;
+            }
+
+            console.log('✅ [PLATFORM] Credenciales encontradas');
+
+            if (button) {
+                button.innerHTML = '<span style="margin-right: 8px;">⏳</span><span>Iniciando...</span>';
+            }
+
+            // Enviar mensaje al background script para iniciar automatización
+            console.log('📡 [PLATFORM] Enviando mensaje al background...');
+
+            const response = await chrome.runtime.sendMessage({
+                action: 'startLicitacionAutomation',
+                licitacionId: this.currentLicitacionId,
+                licitacionData: {
+                    id: this.currentLicitacionId,
+                    url: window.location.href,
+                    nombre: `Licitación ${this.currentLicitacionId}`
+                }
+            });
+
+            console.log('📨 [PLATFORM] Respuesta del background:', response);
+
+            if (response && response.success) {
+                console.log('✅ [PLATFORM] Automatización iniciada exitosamente');
+
+                if (button) {
+                    button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                    button.innerHTML = '<span style="margin-right: 8px;">✅</span><span>Procesando...</span>';
+                }
+
+                this.showNotification('✅ Automatización iniciada correctamente', 'success');
+
+            } else {
+                const errorMsg = response?.error || 'Error desconocido al comunicarse con el background';
+                console.error('❌ [PLATFORM] Error en respuesta:', errorMsg);
+
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = '<span style="margin-right: 8px;">🤖</span><span>Automatizar Licitación</span>';
+                    button.style.cursor = 'pointer';
+                    button.style.opacity = '1';
+                }
+
+                this.showNotification('❌ ' + errorMsg, 'error');
             }
 
         } catch (error) {
-            console.error('❌ Error en startLicitacionAutomation:', error);
+            console.error('❌ [PLATFORM] Excepción en startLicitacionAutomation:', error);
+            console.error('❌ [PLATFORM] Detalles del error:', {
+                message: error.message,
+                stack: error.stack
+            });
 
             const button = document.getElementById('pht-automation-btn');
             if (button) {
@@ -260,7 +301,7 @@ class PlatformLicitacionDetector {
                 button.style.opacity = '1';
             }
 
-            this.showNotification('❌ Error al iniciar automatización', 'error');
+            this.showNotification('❌ Error de comunicación con la extensión', 'error');
         }
     }
 
@@ -351,13 +392,23 @@ class PlatformLicitacionDetector {
     }
 }
 
-// Inicializar detector cuando el DOM esté listo
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        window.platformLicitacionDetector = new PlatformLicitacionDetector();
-    });
-} else {
-    window.platformLicitacionDetector = new PlatformLicitacionDetector();
+// Inicializar detector cuando el DOM esté listo (SOLO UNA VEZ)
+if (!window.platformLicitacionDetectorInitialized) {
+    window.platformLicitacionDetectorInitialized = true;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.platformLicitacionDetector) {
+                window.platformLicitacionDetector = new PlatformLicitacionDetector();
+                console.log('✅ [PLATFORM] Detector inicializado desde DOMContentLoaded');
+            }
+        });
+    } else {
+        if (!window.platformLicitacionDetector) {
+            window.platformLicitacionDetector = new PlatformLicitacionDetector();
+            console.log('✅ [PLATFORM] Detector inicializado inmediatamente');
+        }
+    }
 }
 
-console.log('✅ content-platform.js cargado completamente');
+console.log('✅ [PLATFORM] content-platform.js cargado completamente');
