@@ -177,7 +177,7 @@ class PlatformLicitacionDetector {
         indicator.innerHTML = `
             <div style="
                 position: fixed;
-                top: 80px;
+                top: 20px;
                 right: 20px;
                 background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
                 color: white;
@@ -193,8 +193,8 @@ class PlatformLicitacionDetector {
                 transition: all 0.3s ease;
             " onmouseover="this.style.transform='scale(1.05)';"
                onmouseout="this.style.transform='scale(1)';">
-                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 4px;">Extensión PharmaTender</div>
-                <div style="font-size: 14px; font-weight: 600;">📋 ${this.currentLicitacionId}</div>
+                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 4px;">📋 Licitación Detectada</div>
+                <div style="font-size: 14px; font-weight: 600;">${this.currentLicitacionId}</div>
             </div>
         `;
 
@@ -202,10 +202,28 @@ class PlatformLicitacionDetector {
 
         // Click para abrir popup de extensión
         indicator.addEventListener('click', () => {
-            chrome.runtime.sendMessage({ action: 'openPopup' }).catch(() => {
-                console.log('No se pudo abrir popup');
-            });
+            try {
+                chrome.runtime.sendMessage({ action: 'openPopup' }).catch((error) => {
+                    if (error.message && error.message.includes('Extension context invalidated')) {
+                        this.showExtensionInvalidatedError();
+                    } else {
+                        console.log('No se pudo abrir popup:', error.message);
+                    }
+                });
+            } catch (error) {
+                if (error.message && error.message.includes('Extension context invalidated')) {
+                    this.showExtensionInvalidatedError();
+                }
+            }
         });
+
+        // Auto-fade después de 10 segundos
+        setTimeout(() => {
+            if (indicator && indicator.parentNode) {
+                indicator.style.opacity = '0.6';
+                indicator.style.transform = 'scale(0.95)';
+            }
+        }, 10000);
 
         console.log('✅ Indicador de información agregado');
     }
@@ -213,6 +231,12 @@ class PlatformLicitacionDetector {
     async startLicitacionAutomation() {
         try {
             console.log('🚀 [PLATFORM] Iniciando automatización para licitación:', this.currentLicitacionId);
+
+            // Verificar que el contexto de extensión esté válido
+            if (!this.isExtensionContextValid()) {
+                this.showExtensionInvalidatedError();
+                return;
+            }
 
             // Actualizar botón
             const button = document.getElementById('pht-automation-btn');
@@ -225,7 +249,17 @@ class PlatformLicitacionDetector {
 
             // 1. Primero verificar credenciales
             console.log('🔐 [PLATFORM] Verificando credenciales...');
-            const credsCheck = await chrome.storage.local.get(['encryptedCredentials']);
+            
+            let credsCheck;
+            try {
+                credsCheck = await chrome.storage.local.get(['encryptedCredentials']);
+            } catch (error) {
+                if (error.message && error.message.includes('Extension context invalidated')) {
+                    this.showExtensionInvalidatedError();
+                    return;
+                }
+                throw error;
+            }
 
             if (!credsCheck.encryptedCredentials) {
                 console.error('❌ [PLATFORM] No hay credenciales guardadas');
@@ -320,12 +354,21 @@ class PlatformLicitacionDetector {
             // 4. Enviar mensaje al background script con TODOS los datos
             console.log('📡 [PLATFORM] Enviando mensaje al background con todos los datos...');
 
-            const response = await chrome.runtime.sendMessage({
-                action: 'startLicitacionAutomation',
-                licitacionId: this.currentLicitacionId,
-                licitacionData: licitacionData.data,
-                userData: authData
-            });
+            let response;
+            try {
+                response = await chrome.runtime.sendMessage({
+                    action: 'startLicitacionAutomation',
+                    licitacionId: this.currentLicitacionId,
+                    licitacionData: licitacionData.data,
+                    userData: authData
+                });
+            } catch (error) {
+                if (error.message && error.message.includes('Extension context invalidated')) {
+                    this.showExtensionInvalidatedError();
+                    return;
+                }
+                throw error;
+            }
 
             console.log('📨 [PLATFORM] Respuesta del background:', response);
 
@@ -360,6 +403,12 @@ class PlatformLicitacionDetector {
                 stack: error.stack
             });
 
+            // Verificar si es error de contexto invalidado
+            if (error.message && error.message.includes('Extension context invalidated')) {
+                this.showExtensionInvalidatedError();
+                return;
+            }
+
             const button = document.getElementById('pht-automation-btn');
             if (button) {
                 button.disabled = false;
@@ -370,6 +419,92 @@ class PlatformLicitacionDetector {
 
             this.showNotification('❌ ' + error.message, 'error');
         }
+    }
+
+    isExtensionContextValid() {
+        try {
+            // Intentar acceder al runtime
+            if (chrome.runtime && chrome.runtime.id) {
+                return true;
+            }
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    showExtensionInvalidatedError() {
+        console.warn('⚠️ [PLATFORM] Contexto de extensión invalidado - requiere recarga');
+
+        // Remover botón existente
+        const existingButton = document.getElementById('pht-automation-btn');
+        if (existingButton) {
+            existingButton.remove();
+        }
+
+        // Crear mensaje de error con botón de recarga
+        const errorPanel = document.createElement('div');
+        errorPanel.id = 'pht-extension-reload-panel';
+        errorPanel.innerHTML = `
+            <div style="
+                position: fixed;
+                bottom: 30px;
+                right: 30px;
+                background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+                color: white;
+                padding: 20px 24px;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(220, 53, 69, 0.4);
+                z-index: 10000;
+                max-width: 350px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                animation: slideInUp 0.3s ease-out;
+            ">
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                    <div style="font-size: 24px;">⚠️</div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">
+                            Extensión Recargada
+                        </div>
+                        <div style="font-size: 13px; line-height: 1.5; margin-bottom: 16px; opacity: 0.95;">
+                            La extensión se ha actualizado. Por favor recarga esta página para continuar.
+                        </div>
+                        <button id="pht-reload-page-btn" style="
+                            width: 100%;
+                            background: rgba(255, 255, 255, 0.2);
+                            border: 2px solid rgba(255, 255, 255, 0.4);
+                            color: white;
+                            padding: 10px 16px;
+                            border-radius: 8px;
+                            font-size: 13px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                        " onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'"
+                           onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">
+                            🔄 Recargar Página Ahora
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <style>
+                @keyframes slideInUp {
+                    from { opacity: 0; transform: translateY(30px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            </style>
+        `;
+
+        document.body.appendChild(errorPanel);
+
+        // Event listener para recargar página
+        document.getElementById('pht-reload-page-btn').addEventListener('click', () => {
+            console.log('🔄 [PLATFORM] Recargando página...');
+            window.location.reload();
+        });
+
+        // Mostrar notificación también
+        this.showNotification('⚠️ Recarga la página para usar la extensión actualizada', 'warning');
     }
 
     showNotification(message, type = 'info') {
@@ -428,34 +563,40 @@ class PlatformLicitacionDetector {
 
     setupMessageListener() {
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-            console.log('📨 Mensaje recibido en platform detector:', message);
+            console.log('📨 [PLATFORM] Mensaje recibido:', message);
 
-            switch (message.action) {
-                case 'getPageInfo':
-                    sendResponse({
-                        success: true,
-                        data: {
-                            authenticated: this.isAuthenticated,
-                            licitacionId: this.currentLicitacionId,
-                            userInfo: this.userInfo,
-                            url: window.location.href
-                        }
-                    });
-                    return false;
+            try {
+                switch (message.action) {
+                    case 'getPageInfo':
+                        sendResponse({
+                            success: true,
+                            data: {
+                                authenticated: this.isAuthenticated,
+                                licitacionId: this.currentLicitacionId,
+                                userInfo: this.userInfo,
+                                url: window.location.href
+                            }
+                        });
+                        return false; // Respuesta síncrona
 
-                case 'showNotification':
-                    this.showNotification(message.message, message.type || 'info');
-                    sendResponse({ success: true });
-                    return false;
+                    case 'showNotification':
+                        this.showNotification(message.message, message.type || 'info');
+                        sendResponse({ success: true });
+                        return false; // Respuesta síncrona
 
-                default:
-                    console.log('⚠️ Acción no reconocida:', message.action);
-                    sendResponse({ success: false, error: 'Acción no reconocida' });
-                    return false;
+                    default:
+                        console.log('⚠️ [PLATFORM] Acción no reconocida:', message.action);
+                        sendResponse({ success: false, error: 'Acción no reconocida' });
+                        return false; // Respuesta síncrona
+                }
+            } catch (error) {
+                console.error('❌ [PLATFORM] Error en message listener:', error);
+                sendResponse({ success: false, error: error.message });
+                return false;
             }
         });
 
-        console.log('✅ Message listener configurado');
+        console.log('✅ [PLATFORM] Message listener configurado');
     }
 }
 

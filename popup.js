@@ -131,6 +131,7 @@ class PopupManager {
                 break;
             case 'credentials':
                 await this.checkCredentialStatus();
+                await this.loadExistingCredentials();
                 break;
             case 'settings':
                 this.populateSettings();
@@ -262,22 +263,56 @@ class PopupManager {
         }
     }
     
+    async loadExistingCredentials() {
+        try {
+            const stored = await chrome.storage.local.get(['encryptedCredentials']);
+            
+            if (stored.encryptedCredentials) {
+                const credentials = stored.encryptedCredentials;
+                
+                // Cargar credenciales en el formulario (mapear username a rut)
+                if (credentials.username) {
+                    document.getElementById('rut').value = credentials.username;
+                }
+                
+                if (credentials.rutRepresentante) {
+                    document.getElementById('rutRepresentante').value = credentials.rutRepresentante;
+                }
+                
+                // No cargar la contraseña por seguridad
+                // document.getElementById('password').placeholder = 'Contraseña guardada (oculta)';
+            }
+            
+        } catch (error) {
+            console.error('❌ Error cargando credenciales existentes:', error);
+        }
+    }
+    
     async saveCredentials() {
         try {
             this.showLoading('Guardando credenciales...');
             
             const rut = document.getElementById('rut').value.trim();
             const password = document.getElementById('password').value;
+            const rutRepresentante = document.getElementById('rutRepresentante').value.trim();
             
-            // Validar RUT
+            // Validar RUT Usuario
             if (!this.validateRUT(rut)) {
-                this.showNotification('RUT inválido', 'error');
+                this.showNotification('RUT Usuario inválido', 'error');
                 this.hideLoading();
                 return;
             }
             
+            // Validar contraseña
             if (!password) {
-                this.showNotification('La clave es requerida', 'error');
+                this.showNotification('La contraseña es requerida', 'error');
+                this.hideLoading();
+                return;
+            }
+            
+            // Validar RUT Representante
+            if (!this.validateRUT(rutRepresentante)) {
+                this.showNotification('RUT Representante inválido', 'error');
                 this.hideLoading();
                 return;
             }
@@ -286,8 +321,9 @@ class PopupManager {
             // Por simplicidad, guardamos directamente (en producción usar SecureCredentialManager)
             await chrome.storage.local.set({
                 encryptedCredentials: {
-                    rut: rut,
+                    username: rut, // Mapear rut a username para compatibilidad con background.js
                     password: password, // En producción esto debe estar encriptado
+                    rutRepresentante: rutRepresentante,
                     timestamp: Date.now()
                 }
             });
