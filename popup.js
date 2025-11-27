@@ -42,6 +42,15 @@ class PopupManager {
             this.refreshStatus();
         });
         
+        // Automation actions
+        document.getElementById('startCurrentLicitacion')?.addEventListener('click', () => {
+            this.startCurrentLicitacion();
+        });
+        
+        document.getElementById('refreshLicitacionData')?.addEventListener('click', () => {
+            this.refreshLicitacionData();
+        });
+        
         // Credentials form
         document.getElementById('credentialsForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -484,6 +493,93 @@ class PopupManager {
         } catch (error) {
             console.error('❌ Error actualizando estado:', error);
             this.showNotification('Error actualizando estado', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async startCurrentLicitacion() {
+        try {
+            console.log('🚀 INICIANDO AUTOMATIZACIÓN DE LICITACIÓN...');
+            
+            // Verificar que tenemos credenciales
+            const credentials = await this.credentialManager.getCredentials();
+            if (!credentials || !credentials.username || !credentials.password) {
+                this.showNotification('⚠️ Configure las credenciales primero', 'warning');
+                this.switchTab('credentials');
+                return;
+            }
+            
+            // Obtener pestaña activa
+            const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+            if (!tab) {
+                this.showNotification('❌ No hay pestaña activa', 'error');
+                return;
+            }
+            
+            console.log('🌐 Pestaña actual:', tab.url);
+            
+            // Verificar que estamos en Mercado Público
+            if (!tab.url.includes('mercadopublico.cl')) {
+                this.showNotification('⚠️ Debe estar en una página de Mercado Público', 'warning');
+                return;
+            }
+            
+            this.showLoading('Iniciando automatización...');
+            
+            // Enviar mensaje al content script de licitación
+            const response = await chrome.tabs.sendMessage(tab.id, {
+                action: 'startLicitacionAutomation',
+                data: {
+                    username: credentials.username,
+                    password: credentials.password,
+                    rutRepresentante: credentials.rutRepresentante
+                }
+            });
+            
+            if (response?.success) {
+                this.showNotification('✅ Automatización iniciada', 'success');
+                console.log('✅ Respuesta del content script:', response);
+            } else {
+                this.showNotification('❌ Error iniciando automatización', 'error');
+                console.error('❌ Error del content script:', response);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error iniciando automatización:', error);
+            this.showNotification('❌ Error: ' + error.message, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async refreshLicitacionData() {
+        try {
+            this.showLoading('Actualizando datos de licitación...');
+            
+            // Obtener pestaña activa
+            const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+            if (!tab) {
+                this.showNotification('❌ No hay pestaña activa', 'error');
+                return;
+            }
+            
+            // Solicitar actualización de datos al content script
+            const response = await chrome.tabs.sendMessage(tab.id, {
+                action: 'refreshLicitacionData'
+            });
+            
+            if (response?.success) {
+                await this.loadInitialData();
+                await this.updateUI();
+                this.showNotification('✅ Datos actualizados', 'success');
+            } else {
+                this.showNotification('❌ Error actualizando datos', 'error');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error actualizando datos:', error);
+            this.showNotification('❌ Error: ' + error.message, 'error');
         } finally {
             this.hideLoading();
         }

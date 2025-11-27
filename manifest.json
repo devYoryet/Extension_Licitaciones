@@ -18,6 +18,7 @@
   "host_permissions": [
     "https://prime.pharmatender.cl/*",
     "https://www.mercadopublico.cl/*",
+    "https://proveedor.mercadopublico.cl/*",
     "https://heimdall.mercadopublico.cl/*",
     "https://accounts.claveunica.gob.cl/*",
     "https://auth.mercadopublico.cl/*",
@@ -45,6 +46,7 @@
     {
       "matches": [
         "https://www.mercadopublico.cl/*",
+        "https://proveedor.mercadopublico.cl/*",
         "https://heimdall.mercadopublico.cl/*",
         "https://accounts.claveunica.gob.cl/*",
         "https://auth.mercadopublico.cl/*"
@@ -87,6 +89,7 @@
       "matches": [
         "https://prime.pharmatender.cl/*",
         "https://www.mercadopublico.cl/*",
+        "https://proveedor.mercadopublico.cl/*",
         "https://heimdall.mercadopublico.cl/*"
       ]
     }
