@@ -1092,70 +1092,121 @@ class LicitacionAutomation {
                         break;
                     
                     case 'wizard_paso3_documentos':
-                        console.log('📄 PROCEDIENDO A CARGAR DOCUMENTOS...');
-                        this.updateIndicator('📄 Cargando documentos...', 'processing');
-                        await this.cargarDocumentos();
-                        console.log('✅ DOCUMENTOS CARGADOS');
+                        // 🔍 VERIFICAR SI YA SE EJECUTÓ EL FLUJO COMPLETO EN completarProductosYPrecios()
+                        const flujoCompletado = await chrome.storage.local.get([`productosCompletadosYSiguiente_${this.licitacionId}`]);
+                        const yaCompletado = flujoCompletado[`productosCompletadosYSiguiente_${this.licitacionId}`];
                         
-                        // ✅ DESPUÉS DE CARGAR DOCUMENTOS, IR A DECLARACIÓN JURADA
-                        console.log('');
-                        console.log('🖊️ INICIANDO PROCESO DE DECLARACIÓN JURADA...');
-                        this.updateIndicator('🖊️ Procesando declaración jurada...', 'processing');
-                        
-                        try {
-                            await this.manejarDeclaracionJurada();
-                            console.log('✅ DECLARACIÓN JURADA COMPLETADA');
-                            
-                            // 🔍 VERIFICAR QUE LOS DOCUMENTOS ESTÉN REALMENTE CARGADOS ANTES DE AVANZAR
+                        if (yaCompletado) {
                             console.log('');
-                            console.log('🔍 VERIFICACIÓN FINAL: ¿Están los documentos cargados?...');
+                            console.log('✅ FLUJO YA COMPLETADO EN completarProductosYPrecios()');
+                            console.log(`⏰ Completado el: ${new Date(yaCompletado.timestamp).toLocaleString()}`);
+                            console.log('🔄 SALTANDO wizard_paso3_documentos - ya se ejecutó nueva lógica');
+                            console.log('🎯 El nuevo flujo maneja: div ayuda → siguiente → verificación DJ → navegación');
+                            console.log('');
                             
-                            const verificacionFinal = await this.verificarDocumentosCargados();
+                            // Limpiar la bandera para futuros usos
+                            await chrome.storage.local.remove(`productosCompletadosYSiguiente_${this.licitacionId}`);
                             
-                            if (verificacionFinal.success) {
-                                console.log('✅ VERIFICACIÓN FINAL EXITOSA - Documentos confirmados');
-                                console.log(`📊 Documentos: ${verificacionFinal.cargados}/${verificacionFinal.esperados}`);
+                            // Actualizar indicador y salir
+                            this.updateIndicator('✅ Flujo automático completado', 'success');
+                            return; // SALIR - no hacer nada más aquí
+                        }
+                        
+                        // 🎯 NUEVA LÓGICA: VERIFICAR ESTADO DE DECLARACIÓN JURADA PRIMERO
+                        console.log('');
+                        console.log('🔍 VERIFICANDO ESTADO DE DECLARACIÓN JURADA EN PÁGINA WizAttachment...');
+                        console.log('');
+                        
+                        const estadoDJ = await verificarEstadoDeclaracionJuradaEnPaginaIntermedia();
+                        
+                        console.log('📊 RESULTADO DE VERIFICACIÓN EN WizAttachment:');
+                        console.log(`   - Estado: ${estadoDJ.estado}`);
+                        console.log(`   - ¿Firmada?: ${estadoDJ.firmada}`);
+                        console.log(`   - Elemento: ${estadoDJ.elemento}`);
+                        console.log(`   - Ubicación: ${estadoDJ.ubicacion}`);
+                        
+                        if (estadoDJ.firmada) {
+                            console.log('');
+                            console.log('✅ DECLARACIÓN JURADA YA ESTÁ FIRMADA');
+                            console.log('🔄 CONTINUANDO CON CARGA DE DOCUMENTOS - NO ENTRANDO A DJ');
+                            console.log('');
+                            
+                            // Actualizar indicador
+                            this.updateIndicator('✅ DJ firmada - Cargando documentos...', 'processing');
+                            
+                            // PROCEDER NORMALMENTE CON DOCUMENTOS
+                            console.log('📄 PROCEDIENDO A CARGAR DOCUMENTOS...');
+                            await this.cargarDocumentos();
+                            console.log('✅ DOCUMENTOS CARGADOS');
+                            
+                            // SALTAR PROCESO DE DECLARACIÓN JURADA - ya está firmada
+                            console.log('🔄 SALTANDO proceso de declaración jurada - ya firmada');
+                            
+                        } else {
+                            console.log('');
+                            console.log('⚠️ DECLARACIÓN JURADA PENDIENTE - DEBE SER FIRMADA');
+                            console.log(`📋 Estado detectado: ${estadoDJ.estado}`);
+                            console.log('🔄 NAVEGANDO A DECLARACIÓN JURADA PARA FIRMARLA...');
+                            console.log('');
+                            
+                            // Actualizar indicador
+                            this.updateIndicator('⚠️ DJ pendiente - Navegando a firmar...', 'processing');
+                            
+                            // GUARDAR URL ACTUAL PARA REGRESAR
+                            await guardarUrlIntermedia(window.location.href);
+                            
+                            // NAVEGAR A DECLARACIÓN JURADA
+                            await navegarADeclaracionJuradaParaFirmar();
+                            
+                            // TERMINAR AQUÍ - el flujo continuará después de firmar
+                            return;
+                        }
+                        
+                        // Si llegamos aquí, la DJ ya está firmada - continuar con verificación final
+                        console.log('');
+                        console.log('🔍 VERIFICACIÓN FINAL: ¿Están los documentos cargados?...');
+                        
+                        const verificacionFinal = await this.verificarDocumentosCargados();
+                        
+                        if (verificacionFinal.success) {
+                            console.log('✅ VERIFICACIÓN FINAL EXITOSA - Documentos confirmados');
+                            console.log(`📊 Documentos: ${verificacionFinal.cargados}/${verificacionFinal.esperados}`);
+                            
+                            // ✅ TODO LISTO - HACER "SIGUIENTE" (SIN la nueva lógica de DJ porque ya está firmada)
+                            console.log('');
+                            console.log('➡️ TODO COMPLETADO - AVANZANDO AL SIGUIENTE PASO...');
+                            console.log('🎯 Usando clickSiguiente() simple porque DJ ya está firmada');
+                            this.updateIndicator('➡️ Avanzando - todo OK...', 'processing');
+                            
+                            // USAR FUNCIÓN SIMPLE DE SIGUIENTE (sin verificación DJ)
+                            await this.clickSiguienteSinVerificacionDJ();
+                            
+                            console.log('✅ NAVEGACIÓN AL SIGUIENTE PASO COMPLETADA');
+                            
+                        } else {
+                            console.error('❌ VERIFICACIÓN FINAL FALLIDA - FALTAN DOCUMENTOS');
+                            console.error(`📊 Esperados: ${verificacionFinal.esperados}, Cargados: ${verificacionFinal.cargados}`);
+                            
+                            // Intentar cargar documentos de nuevo
+                            console.log('🔧 INTENTANDO CARGAR DOCUMENTOS DE NUEVO...');
+                            try {
+                                await this.switchToDocumentFrame();
+                                await this.obtenerYCargarDocumentosDesdeApp();
                                 
-                                // ✅ TODO LISTO - HACER "SIGUIENTE"
-                                console.log('');
-                                console.log('➡️ TODO COMPLETADO - AVANZANDO AL SIGUIENTE PASO...');
-                                this.updateIndicator('➡️ Avanzando - documentos OK...', 'processing');
-                                await this.clickSiguiente();
-                                console.log('✅ NAVEGACIÓN AL SIGUIENTE PASO COMPLETADA');
-                                
-                            } else {
-                                console.error('❌ VERIFICACIÓN FINAL FALLIDA - FALTAN DOCUMENTOS');
-                                console.error(`📊 Esperados: ${verificacionFinal.esperados}, Cargados: ${verificacionFinal.cargados}`);
-                                console.error('🚨 ESTO CAUSARÁ EL ERROR "oferta en estado guardada"');
-                                
-                                // 🔧 INTENTAR CARGAR DOCUMENTOS DE NUEVO
-                                console.log('🔧 INTENTANDO CARGAR DOCUMENTOS DE NUEVO...');
-                                try {
-                                    await this.switchToDocumentFrame();
-                                    await this.obtenerYCargarDocumentosDesdeApp();
-                                    
-                                    // Verificar otra vez
-                                    const segundaVerificacion = await this.verificarDocumentosCargados();
-                                    if (segundaVerificacion.success) {
-                                        console.log('✅ SEGUNDA CARGA EXITOSA - Continuando...');
-                                        await this.switchToDefaultContent();
-                                        await this.clickSiguiente();
-                                    } else {
-                                        console.error('❌ SEGUNDA CARGA TAMBIÉN FALLÓ');
-                                        throw new Error('No se pudieron cargar los documentos después de 2 intentos');
-                                    }
-                                } catch (errorDocumentos) {
-                                    console.error('❌ Error en segunda carga de documentos:', errorDocumentos);
-                                    console.log('⚠️ Avanzando sin documentos - USUARIO DEBE VERIFICAR MANUALMENTE');
-                                    await this.clickSiguiente();
+                                const segundaVerificacion = await this.verificarDocumentosCargados();
+                                if (segundaVerificacion.success) {
+                                    console.log('✅ SEGUNDA CARGA EXITOSA - Continuando...');
+                                    await this.switchToDefaultContent();
+                                    await this.clickSiguienteSinVerificacionDJ();
+                                } else {
+                                    console.error('❌ SEGUNDA CARGA TAMBIÉN FALLÓ');
+                                    console.log('⚠️ Avanzando sin documentos - USUARIO DEBE VERIFICAR');
+                                    await this.clickSiguienteSinVerificacionDJ();
                                 }
+                            } catch (errorDocumentos) {
+                                console.error('❌ Error en segunda carga de documentos:', errorDocumentos);
+                                await this.clickSiguienteSinVerificacionDJ();
                             }
-                            
-                        } catch (error) {
-                            console.error('❌ Error en declaración jurada:', error);
-                            console.log('⚠️ Intentando continuar sin declaración jurada...');
-                            // Intentar avanzar de todos modos
-                            await this.clickSiguiente();
                         }
                         break;
                     
@@ -1844,6 +1895,19 @@ class LicitacionAutomation {
                         console.log(`📊 Items procesados: ${processedData[storageKey].itemsProcessed.join(', ')}`);
                         console.log(`⏰ Procesado el: ${new Date(processedData[storageKey].timestamp).toLocaleString()}`);
                         console.log('📋 Saltando directo a siguiente paso');
+                        
+                        // 🆕 HACER CLICK EN EL DIV DE AYUDA ANTES DE "SIGUIENTE"
+                        console.log('👆 HACIENDO CLICK EN DIV DE AYUDA ESPECÍFICO...');
+                        await this.clickDivAyudaEspecifico();
+                        
+                        // 🚩 MARCAR QUE PRODUCTOS ESTÁN COMPLETADOS Y SIGUIENTE YA SE EJECUTÓ
+                        await chrome.storage.local.set({
+                            [`productosCompletadosYSiguiente_${this.licitacionId}`]: {
+                                completed: true,
+                                timestamp: Date.now()
+                            }
+                        });
+                        
                         await this.clickSiguiente();
                         return;
                     }
@@ -1883,7 +1947,20 @@ class LicitacionAutomation {
                         console.log('');
                         console.log('✅ TODOS LOS PRODUCTOS ESPECÍFICOS PROCESADOS CORRECTAMENTE');
                         console.log(`📊 Items procesados: ${resultadoProcesamiento.itemsProcessed.join(', ')}`);
+                        
+                        // 🆕 HACER CLICK EN EL DIV DE AYUDA ANTES DE "SIGUIENTE"
+                        console.log('👆 HACIENDO CLICK EN DIV DE AYUDA ESPECÍFICO...');
+                        await this.clickDivAyudaEspecifico();
+                        
                         console.log('👆 PROCEDIENDO A HACER CLICK EN "SIGUIENTE"...');
+                        
+                        // 🚩 MARCAR QUE PRODUCTOS ESTÁN COMPLETADOS Y SIGUIENTE YA SE EJECUTÓ
+                        await chrome.storage.local.set({
+                            [`productosCompletadosYSiguiente_${this.licitacionId}`]: {
+                                completed: true,
+                                timestamp: Date.now()
+                            }
+                        });
                         
                         // ✅ HACER CLIC EN "SIGUIENTE"
                         await this.clickSiguiente();
@@ -3224,16 +3301,21 @@ class LicitacionAutomation {
             // 🚨 VERIFICAR SI YA ESTAMOS EN UNA PÁGINA DONDE EL SWITCH CASE MANEJA TODO
             const currentUrl = window.location.href;
             
-            // ✅ REMOVIDO: No interceptar wizard aquí, dejar que llegue a continuarProcesarProductos()
-            // que tiene la lógica completa de paginación
-            
-            if (currentUrl.includes('WizAttachment.aspx') || 
-                currentUrl.includes('WizBIDConfirm.aspx') ||
+            // 🆕 PERMITIR QUE WizAttachment.aspx LLEGUE AL SWITCH CASE PARA NUEVA LÓGICA
+            if (currentUrl.includes('WizBIDConfirm.aspx') ||
                 currentUrl.includes('dj-requisitos')) {
                 console.log('ℹ️ PÁGINA ESPECIAL DETECTADA - El switch case ya maneja esta página');
                 console.log(`📍 URL: ${currentUrl}`);
                 console.log('🚫 Saltando continuarProcesamiento para evitar conflictos');
                 return;
+            }
+            
+            // 🆕 PERMITIR QUE WizAttachment.aspx CONTINÚE PARA EJECUTAR NUEVA LÓGICA
+            if (currentUrl.includes('WizAttachment.aspx')) {
+                console.log('✅ PÁGINA WizAttachment DETECTADA - CONTINUANDO PARA EJECUTAR NUEVA LÓGICA');
+                console.log(`📍 URL: ${currentUrl}`);
+                console.log('🔄 La nueva lógica de verificación DJ se ejecutará en el switch case');
+                // NO hacer return aquí - continuar con el flujo
             }
             
             if (estado.paso === 'checkbox_nobids_activado') {
@@ -4254,6 +4336,135 @@ class LicitacionAutomation {
         }
     }
 
+    async clickDivAyudaEspecifico() {
+        console.log('🔍 Buscando div de ayuda específico para hacer click...');
+        
+        try {
+            // Selector específico del div que mencionaste
+            const selectoresDivAyuda = [
+                'div[id*="hlSpecpanelHelp"]',
+                '#ctl00_ctl00_mpcphFormWizardFields_rptBids_ctl05_hlSpecpanelHelp',
+                'div[class*="cssHelpDiv"]',
+                'div[id*="rptBids_ctl05_hlSpecpanelHelp"]',
+                'div[id*="hlSpecpanelHelp"][class*="cssHelpDiv"]'
+            ];
+            
+            // También buscar variaciones con diferentes números de control
+            for (let i = 0; i < 20; i++) {
+                const indiceFormateado = i.toString().padStart(2, '0');
+                selectoresDivAyuda.push(`#ctl00_ctl00_mpcphFormWizardFields_rptBids_ctl${indiceFormateado}_hlSpecpanelHelp`);
+                selectoresDivAyuda.push(`div[id*="rptBids_ctl${indiceFormateado}_hlSpecpanelHelp"]`);
+            }
+            
+            let divEncontrado = null;
+            
+            for (const selector of selectoresDivAyuda) {
+                divEncontrado = document.querySelector(selector);
+                if (divEncontrado) {
+                    console.log(`✅ Div de ayuda encontrado con selector: ${selector}`);
+                    console.log(`📍 ID: ${divEncontrado.id}`);
+                    console.log(`📍 Clase: ${divEncontrado.className}`);
+                    console.log(`📍 Estilo: ${divEncontrado.style.cssText}`);
+                    break;
+                }
+            }
+            
+            if (!divEncontrado) {
+                // Búsqueda más amplia por características
+                console.log('🔍 Búsqueda específica no exitosa, buscando por características...');
+                
+                const divsCandidatos = document.querySelectorAll('div[class*="cssHelpDiv"], div[id*="hlSpecpanelHelp"]');
+                console.log(`🔍 Encontrados ${divsCandidatos.length} divs candidatos`);
+                
+                for (const div of divsCandidatos) {
+                    const contenido = div.textContent || div.innerHTML;
+                    if (contenido.includes('Use esta campo para detalles') || 
+                        contenido.includes('detalles de su oferta') ||
+                        contenido.includes('descuentos, validez de la oferta')) {
+                        divEncontrado = div;
+                        console.log(`✅ Div encontrado por contenido: ${div.id}`);
+                        console.log(`📝 Contenido: ${contenido.substring(0, 100)}...`);
+                        break;
+                    }
+                }
+            }
+            
+            if (divEncontrado) {
+                console.log('👆 Haciendo click en div de ayuda...');
+                
+                // Intentar múltiples métodos de click
+                try {
+                    // Método 1: Click directo
+                    divEncontrado.click();
+                    console.log('✅ Click directo realizado');
+                } catch (e) {
+                    console.log('⚠️ Click directo falló, intentando dispatchEvent...');
+                    
+                    // Método 2: DispatchEvent
+                    const clickEvent = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    divEncontrado.dispatchEvent(clickEvent);
+                    console.log('✅ DispatchEvent realizado');
+                }
+                
+                // Pequeña pausa para que se procese el click
+                await this.delay(1000);
+                
+                console.log('✅ Click en div de ayuda completado');
+                
+            } else {
+                console.log('⚠️ No se encontró el div de ayuda específico');
+                console.log('ℹ️ Continuando sin hacer click en el div');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error haciendo click en div de ayuda:', error);
+            console.log('ℹ️ Continuando a pesar del error...');
+        }
+    }
+
+    async clickSiguienteSinVerificacionDJ() {
+        console.log('👆 Buscando botón "Siguiente" (versión simple)...');
+        
+        try {
+            // Selector del botón Siguiente (del script Python)
+            const selector = '#ctl00_btnNext';
+            
+            // Esperar el botón
+            const button = await this.waitForElement(selector, 30000).catch(() => null);
+            
+            if (!button) {
+                console.error('❌ No se encontró botón "Siguiente":', selector);
+                throw new Error('Botón Siguiente no encontrado');
+            }
+            
+            console.log('✅ Botón "Siguiente" encontrado');
+            
+            // Scroll al botón
+            button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(500);
+            
+            // Click con JavaScript (más confiable en MP)
+            console.log('👆 Haciendo click en "Siguiente"...');
+            button.click();
+            
+            console.log('✅ Click realizado');
+            console.log('⏳ Esperando transición...');
+            
+            await this.delay(5000);
+            await this.waitForPageLoad();
+            
+            console.log('✅ Transición completada');
+            
+        } catch (error) {
+            console.error('❌ Error haciendo click en Siguiente:', error);
+            throw error;
+        }
+    }
+
     async clickSiguiente() {
         console.log('👆 Buscando botón "Siguiente"...');
         
@@ -4286,6 +4497,52 @@ class LicitacionAutomation {
             await this.waitForPageLoad();
             
             console.log('✅ Transición completada');
+            
+            // ====================================================================
+            // NUEVA LÓGICA: GUARDAR URL Y VERIFICAR ESTADO DE DECLARACIÓN JURADA
+            // ====================================================================
+            console.log('');
+            console.log('🔍 VERIFICANDO ESTADO DE DECLARACIÓN JURADA EN PÁGINA INTERMEDIA...');
+            console.log('');
+            
+            const urlActual = window.location.href;
+            console.log(`📍 URL después de "Siguiente": ${urlActual}`);
+            
+            // GUARDAR LA URL PARA REGRESAR DESPUÉS (si es necesario firmar)
+            await this.guardarUrlIntermedia(urlActual);
+            
+            // VERIFICAR ESTADO DE DECLARACIÓN JURADA EN ESTA PÁGINA
+            const estadoDJ = await this.verificarEstadoDeclaracionJuradaEnPaginaIntermedia();
+            
+            console.log('📊 RESULTADO DE VERIFICACIÓN:');
+            console.log(`   - Estado: ${estadoDJ.estado}`);
+            console.log(`   - ¿Firmada?: ${estadoDJ.firmada}`);
+            console.log(`   - Ubicación: ${estadoDJ.ubicacion}`);
+            
+            if (estadoDJ.firmada) {
+                console.log('');
+                console.log('✅ DECLARACIÓN JURADA YA ESTÁ FIRMADA');
+                console.log('🔄 CONTINUANDO EN ESTA PÁGINA - NO ENTRANDO A DJ');
+                console.log('');
+                
+                // Actualizar indicador
+                this.updateIndicator('✅ Declaración ya firmada', 'success');
+                
+                // NO hacer nada más, dejar que el flujo continúe normalmente
+                // La función que llamó a clickSiguiente() continuará con cargarDocumentos()
+                
+            } else {
+                console.log('');
+                console.log('⚠️ DECLARACIÓN JURADA PENDIENTE - DEBE SER FIRMADA');
+                console.log('🔄 NAVEGANDO A DECLARACIÓN JURADA PARA FIRMARLA...');
+                console.log('');
+                
+                // Actualizar indicador
+                this.updateIndicator('⚠️ Firmando declaración...', 'processing');
+                
+                // NAVEGAR A LA DECLARACIÓN JURADA PARA FIRMARLA
+                await this.navegarADeclaracionJuradaParaFirmar();
+            }
             
         } catch (error) {
             console.error('❌ Error haciendo click en Siguiente:', error);
@@ -5741,32 +5998,36 @@ class LicitacionAutomation {
             
         } else if (esPaginaDocumentos) {
             console.log('');
-            console.log('🔍 VERIFICANDO ESTADO DE DECLARACIÓN JURADA...');
+            console.log('🔍 VERIFICANDO ESTADO DE DECLARACIÓN JURADA EN PÁGINA DE DOCUMENTOS...');
             console.log('');
             
-            // VERIFICAR SI YA ESTÁ FIRMADA ANTES DE PROCESAR
-            const estadoActual = await this.verificarEstadoDeclaracionJurada();
+            // VERIFICAR SI YA ESTÁ FIRMADA ANTES DE PROCEDER
+            const estadoActual = await this.verificarEstadoDeclaracionJuradaEnPaginaDocumentos();
             
             if (estadoActual.firmada) {
                 console.log('');
                 console.log('✅ DECLARACIÓN JURADA YA ESTÁ FIRMADA');
                 console.log(`📋 Estado: ${estadoActual.estado}`);
-                console.log('🔄 Saltando proceso de firma, continuando con flujo...');
+                console.log(`📍 Elemento: ${estadoActual.elemento}`);
+                console.log('🔄 SALTANDO proceso de firma, NO entrando a la declaración jurada');
+                console.log('🔄 Continuando directamente con la carga de documentos...');
                 console.log('');
                 
                 // Actualizar indicador visual para mostrar que ya está firmada
-                this.updateIndicator('✅ Declaración ya firmada', 'success');
+                this.updateIndicator('✅ Declaración ya firmada - Continuando', 'success');
                 
-                return; // Salir para que continúe con el siguiente paso
+                // NO hacer click en declaración jurada, continuar con siguiente paso
+                return; // Salir para que continúe con carga de documentos
             } else {
                 console.log('');
-                console.log('⚠️ DECLARACIÓN JURADA PENDIENTE - INICIANDO PROCESO');
+                console.log('⚠️ DECLARACIÓN JURADA PENDIENTE - NECESITA SER FIRMADA');
                 console.log(`📋 Estado actual: ${estadoActual.estado}`);
+                console.log('🔄 Procediendo a entrar a la declaración jurada para firmarla...');
                 console.log('');
                 console.log('🔍 BUSCANDO ENLACE "DECLARAR Y FIRMAR" EN PÁGINA DE DOCUMENTOS...');
                 console.log('');
                 
-                // BUSCAR Y HACER CLIC EN ENLACE
+                // BUSCAR Y HACER CLIC EN ENLACE SOLO SI NO ESTÁ FIRMADA
                 await this.buscarYClickDeclaracionJurada();
             }
             
@@ -5798,7 +6059,13 @@ class LicitacionAutomation {
         if (estadoDJ.firmada) {
             console.log('');
             console.log('✅ ÉXITO: Declaración jurada FIRMADA correctamente');
-            console.log('🔄 Continuando con el siguiente paso del flujo...');
+            console.log(`📋 Estado detectado: ${estadoDJ.estado}`);
+            console.log(`📍 Ubicación: ${estadoDJ.ubicacion}`);
+            
+            // REGRESAR A LA URL INTERMEDIA (donde estaba antes de entrar a firmar)
+            console.log('🔄 Regresando a la página intermedia del flujo...');
+            await regresarAUrlIntermedia();
+            
         } else {
             console.log('');
             console.log('❌ ERROR: Declaración jurada AÚN PENDIENTE');
@@ -5811,6 +6078,13 @@ class LicitacionAutomation {
             const estadoDJ2 = await this.verificarEstadoDeclaracionJurada();
             if (estadoDJ2.firmada) {
                 console.log('✅ SEGUNDA VERIFICACIÓN: Declaración jurada ahora está FIRMADA');
+                console.log(`📋 Estado detectado: ${estadoDJ2.estado}`);
+                console.log(`📍 Ubicación: ${estadoDJ2.ubicacion}`);
+                
+                // REGRESAR A LA URL INTERMEDIA DESPUÉS DE SEGUNDA VERIFICACIÓN
+                console.log('🔄 Regresando a la página intermedia del flujo...');
+                await regresarAUrlIntermedia();
+                
             } else {
                 console.log('❌ SEGUNDA VERIFICACIÓN: Declaración jurada sigue PENDIENTE');
                 throw new Error(`Declaración jurada no se firmó correctamente. Estado final: ${estadoDJ2.estado}`);
@@ -6270,7 +6544,54 @@ class LicitacionAutomation {
             }
             
             console.log('⚠️ No se encontró ningún indicador de estado');
-            console.log('🔍 Elementos disponibles para debug:');
+            console.log('🔍 Búsqueda exhaustiva en elementos React/Material-UI...');
+            
+            // BÚSQUEDA EXHAUSTIVA PARA ELEMENTOS REACT/MATERIAL-UI
+            const todosLosElementos = document.querySelectorAll('*');
+            for (const elem of todosLosElementos) {
+                const texto = elem.textContent ? elem.textContent.trim() : '';
+                
+                // Buscar específicamente "FIRMADA" como texto independiente
+                if (texto === 'FIRMADA' || 
+                    texto === 'Declaración Jurada de Requisitos para OfertarFIRMADA' ||
+                    texto.includes('FIRMADA') && texto.length < 100) {
+                    
+                    console.log(`✅ ESTADO FIRMADA ENCONTRADO:`);
+                    console.log(`   - Elemento: ${elem.tagName}`);
+                    console.log(`   - ID: ${elem.id}`);
+                    console.log(`   - Clases: ${elem.className}`);
+                    console.log(`   - Texto completo: "${texto}"`);
+                    
+                    return {
+                        firmada: true,
+                        estado: 'FIRMADA',
+                        clase: elem.className,
+                        ubicacion: 'busqueda_exhaustiva',
+                        elemento: elem.tagName + (elem.id ? '#' + elem.id : '') + (elem.className ? '.' + elem.className.replace(/\s+/g, '.') : '')
+                    };
+                }
+                
+                // También buscar variantes
+                if ((texto.toLowerCase().includes('firmada') || texto.toLowerCase().includes('firmado')) && 
+                    !texto.toLowerCase().includes('pendiente') && 
+                    texto.length < 200) {
+                    
+                    console.log(`✅ VARIANTE DE FIRMADA ENCONTRADA:`);
+                    console.log(`   - Elemento: ${elem.tagName}`);
+                    console.log(`   - Texto: "${texto}"`);
+                    console.log(`   - Clases: ${elem.className}`);
+                    
+                    return {
+                        firmada: true,
+                        estado: texto,
+                        clase: elem.className,
+                        ubicacion: 'variante_firmada',
+                        elemento: elem.tagName + (elem.id ? '#' + elem.id : '') + (elem.className ? '.' + elem.className.replace(/\s+/g, '.') : '')
+                    };
+                }
+            }
+            
+            console.log('🔍 Elementos disponibles para debug (primeros 5):');
             
             // Debug: Mostrar elementos que podrían contener el estado
             const posiblesElementos = document.querySelectorAll('[id*="estado"], [class*="estado"], [class*="firma"], [id*="declara"], span, div');
@@ -8581,50 +8902,14 @@ class LicitacionAutomation {
                 }
             }
             
-            // PASO 2: ESPERAR Y PROCESAR MODAL SIN CROSS-ORIGIN
-            console.log('⏳ Esperando modal...');
+            // PASO 2: ESPERAR Y PROCESAR MODAL CON MÚLTIPLES INTENTOS
+            console.log('⏳ Esperando modal de confirmación...');
             await this.delay(3000);
             
-            // Buscar modal en documento actual sin acceso cross-origin
-            const modal = document.querySelector('.MuiDialog-root, .MuiModal-root, [role="dialog"]');
+            // Intentar manejar el modal con múltiples estrategias
+            await this.manejarModalConfirmacionFirma();
             
-            if (modal && modal.offsetParent !== null) {
-                console.log('✅ Modal encontrado - procesando...');
-                
-                // Buscar segundo botón dentro del modal
-                const botonesModal = modal.querySelectorAll('button');
-                let segundoBoton = null;
-                
-                for (const btn of botonesModal) {
-                    if (btn.textContent.includes('Firmar sin Clave Única') && btn.offsetParent !== null) {
-                        segundoBoton = btn;
-                        break;
-                    }
-                }
-                
-                if (segundoBoton) {
-                    console.log('✅ Segundo botón encontrado en modal');
-                    segundoBoton.click();
-                    await this.delay(2000);
-                    
-                    // Buscar botón cerrar
-                    const botonCerrar = [...modal.querySelectorAll('button')].find(btn => 
-                        btn.textContent.includes('Cerrar') || 
-                        btn.textContent.includes('volver') ||
-                        btn.textContent.includes('OK')
-                    );
-                    
-                    if (botonCerrar) {
-                        console.log('✅ Botón cerrar encontrado');
-                        botonCerrar.click();
-                        await this.delay(2000);
-                    }
-                }
-                
-                console.log('✅ Modal procesado');
-            } else {
-                console.log('⚠️ Modal no encontrado o ya cerrado');
-            }
+            console.log('✅ Proceso de modal completado');
             
             console.log('✅ Proceso de firma sin Clave Única completado');
             
@@ -8667,6 +8952,249 @@ class LicitacionAutomation {
         
         console.log('❌ No se encontró el botón');
         return null;
+    }
+
+    /**
+     * MANEJAR MODAL DE CONFIRMACIÓN DESPUÉS DE FIRMAR
+     */
+    async manejarModalConfirmacionFirma() {
+        console.log('🔍 Buscando modal de confirmación de firma...');
+        
+        // Esperar hasta 15 segundos por el modal
+        for (let intento = 1; intento <= 15; intento++) {
+            console.log(`🔄 Intento ${intento}/15 - Buscando modal...`);
+            
+            // Buscar modal con múltiples selectores
+            let modal = document.querySelector('.MuiDialog-root, .MuiModal-root, [role="dialog"], .sc-kAKABG, .leeTDo, .modal, .popup');
+            
+            if (!modal) {
+                // Buscar por overlay o backdrop
+                modal = document.querySelector('[class*="overlay"], [class*="backdrop"], [class*="dialog"], [class*="modal"]');
+            }
+            
+            if (modal && modal.offsetParent !== null) {
+                console.log('✅ Modal encontrado - tipo:', modal.className);
+                
+                // Verificar si es modal de éxito
+                const textoModal = modal.textContent || '';
+                const esModalExito = textoModal.includes('Declaración firmada con éxito') || 
+                                   textoModal.includes('firmada exitosamente') ||
+                                   textoModal.includes('Declaración firmada');
+                
+                if (esModalExito) {
+                    console.log('🎉 MODAL DE ÉXITO DETECTADO - Declaración firmada correctamente');
+                }
+                
+                // Estrategia 1: Buscar botón específico en el modal
+                const botonesModal = modal.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]');
+                console.log(`📊 ${botonesModal.length} botones encontrados en modal`);
+                
+                let botonConfirmar = null;
+                let botonCerrar = null;
+                
+                for (let i = 0; i < botonesModal.length; i++) {
+                    const btn = botonesModal[i];
+                    const texto = btn.textContent || btn.value || '';
+                    console.log(`   Botón ${i+1}: "${texto.trim()}" - visible: ${btn.offsetParent !== null}`);
+                    
+                    // Buscar botón de confirmación
+                    if (texto.includes('Firmar sin Clave Única') || 
+                        texto.includes('Confirmar') || 
+                        texto.includes('Aceptar') ||
+                        texto.includes('OK')) {
+                        botonConfirmar = btn;
+                        console.log(`✅ Botón confirmar encontrado: "${texto.trim()}"`);
+                    }
+                    
+                    // Buscar botón de cerrar (incluyendo el específico "Cerrar y volver a la oferta")
+                    if (texto.includes('Cerrar y volver a la oferta') ||
+                        texto.includes('Cerrar') || 
+                        texto.includes('volver a la oferta') ||
+                        texto.includes('volver') ||
+                        texto.includes('Cancelar') ||
+                        texto.includes('✕') ||
+                        btn.className.includes('close')) {
+                        botonCerrar = btn;
+                        console.log(`✅ Botón cerrar encontrado: "${texto.trim()}"`);
+                    }
+                }
+                
+                // Si es modal de éxito, ir directamente al botón cerrar
+                if (esModalExito && !botonCerrar) {
+                    // Buscar específicamente el botón con las clases exactas que proporcionaste
+                    botonCerrar = modal.querySelector('button.sc-dmsloy.EaXFo.MuiButtonBase-root.sc-iXWftf.sc-hZocGY.jaiHKL.vhfwc');
+                    if (botonCerrar) {
+                        console.log('✅ Botón "Cerrar y volver a la oferta" encontrado por clases específicas');
+                    }
+                }
+                
+                // Hacer click en confirmar si existe (solo si no es modal de éxito)
+                if (!esModalExito && botonConfirmar && botonConfirmar.offsetParent !== null) {
+                    console.log('🖊️ Haciendo click en botón de confirmación...');
+                    await this.ejecutarClickConFallbacks(botonConfirmar);
+                    await this.delay(2000);
+                }
+                
+                // Hacer click en cerrar si existe
+                if (botonCerrar && botonCerrar.offsetParent !== null) {
+                    console.log('🚪 Haciendo click en "Cerrar y volver a la oferta"...');
+                    await this.ejecutarClickConFallbacks(botonCerrar);
+                    await this.delay(2000);
+                    break;
+                }
+                
+                // Estrategia 2: Si no hay botones específicos, intentar Enter
+                if (!botonConfirmar && !botonCerrar) {
+                    console.log('🔄 No se encontraron botones específicos, intentando Enter...');
+                    
+                    // Hacer focus en el modal y presionar Enter
+                    try {
+                        modal.focus();
+                        await this.delay(500);
+                        
+                        modal.dispatchEvent(new KeyboardEvent('keydown', {
+                            key: 'Enter',
+                            keyCode: 13,
+                            which: 13,
+                            bubbles: true,
+                            cancelable: true
+                        }));
+                        
+                        console.log('✅ Enter enviado al modal');
+                        await this.delay(2000);
+                        
+                        // Intentar también Escape para cerrar
+                        modal.dispatchEvent(new KeyboardEvent('keydown', {
+                            key: 'Escape',
+                            keyCode: 27,
+                            which: 27,
+                            bubbles: true,
+                            cancelable: true
+                        }));
+                        
+                        console.log('✅ Escape enviado al modal');
+                        await this.delay(1000);
+                        break;
+                        
+                    } catch (e) {
+                        console.warn('⚠️ Error enviando teclas al modal:', e.message);
+                    }
+                }
+                
+                // Estrategia 3: Búsqueda adicional si no se encontró botón cerrar
+                if (!botonCerrar && esModalExito) {
+                    console.log('🔍 Búsqueda adicional para botón "Cerrar y volver a la oferta"...');
+                    
+                    // Buscar por clases parciales
+                    const candidatos = [
+                        modal.querySelector('button[variant="contained"]'),
+                        modal.querySelector('button.MuiButtonBase-root'),
+                        modal.querySelector('button.sc-dmsloy'),
+                        modal.querySelector('button[color="default"]')
+                    ];
+                    
+                    for (const candidato of candidatos) {
+                        if (candidato && candidato.textContent.includes('Cerrar') && candidato.offsetParent !== null) {
+                            botonCerrar = candidato;
+                            console.log('✅ Botón encontrado por búsqueda adicional');
+                            await this.ejecutarClickConFallbacks(botonCerrar);
+                            await this.delay(2000);
+                            break;
+                        }
+                    }
+                }
+                
+                // Estrategia 4: Si todo lo anterior falla, hacer click en el primer botón visible
+                if (!botonConfirmar && !botonCerrar && botonesModal.length > 0) {
+                    const primerBoton = [...botonesModal].find(btn => btn.offsetParent !== null);
+                    if (primerBoton) {
+                        console.log('🔄 Haciendo click en primer botón visible como fallback...');
+                        console.log(`📝 Texto del botón: "${primerBoton.textContent.trim()}"`);
+                        await this.ejecutarClickConFallbacks(primerBoton);
+                        await this.delay(2000);
+                    }
+                }
+                
+                console.log('✅ Modal procesado exitosamente');
+                break;
+                
+            } else {
+                console.log(`⏳ Modal no encontrado en intento ${intento}, esperando...`);
+                await this.delay(1000);
+            }
+        }
+        
+        console.log('✅ Finalizado procesamiento de modal');
+    }
+
+    /**
+     * EJECUTAR CLICK CON MÚLTIPLES FALLBACKS
+     */
+    async ejecutarClickConFallbacks(elemento) {
+        console.log(`🖊️ Ejecutando click en: "${elemento.textContent?.trim() || 'elemento'}"...`);
+        
+        try {
+            // Método 1: Click directo
+            elemento.click();
+            console.log('✅ Click directo exitoso');
+            return;
+        } catch (e1) {
+            console.log('⚠️ Click directo falló:', e1.message);
+        }
+        
+        try {
+            // Método 2: DispatchEvent MouseEvent
+            elemento.dispatchEvent(new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            }));
+            console.log('✅ MouseEvent exitoso');
+            return;
+        } catch (e2) {
+            console.log('⚠️ MouseEvent falló:', e2.message);
+        }
+        
+        try {
+            // Método 3: Focus + Enter
+            elemento.focus();
+            await this.delay(200);
+            
+            elemento.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true
+            }));
+            
+            console.log('✅ Focus + Enter exitoso');
+            return;
+        } catch (e3) {
+            console.log('⚠️ Focus + Enter falló:', e3.message);
+        }
+        
+        try {
+            // Método 4: Simular coordenadas
+            const rect = elemento.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            
+            elemento.dispatchEvent(new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                clientX: x,
+                clientY: y,
+                screenX: x,
+                screenY: y
+            }));
+            
+            console.log('✅ Click por coordenadas exitoso');
+            return;
+        } catch (e4) {
+            console.error('❌ Todos los métodos de click fallaron:', e4.message);
+            throw new Error(`No se pudo hacer click en el elemento: ${e4.message}`);
+        }
     }
 
     /**
@@ -10625,6 +11153,810 @@ window.procesoFirmaCompleto = async () => {
         return true;
     } catch (error) {
         console.error('❌ Error en proceso de firma:', error);
+        return false;
+    }
+};
+
+/**
+ * Guarda la URL intermedia donde se puede verificar el estado de la declaración jurada
+ * Esta URL es donde regresaremos después de firmar la declaración si es necesario
+ */
+const guardarUrlIntermedia = async (url) => {
+    try {
+        console.log(`💾 Guardando URL intermedia: ${url}`);
+        
+        // Guardar en múltiples ubicaciones para asegurar persistencia
+        localStorage.setItem('urlIntermediaDeclaracion', url);
+        sessionStorage.setItem('urlIntermediaDeclaracion', url);
+        
+        // También guardar en storage de la extensión
+        await chrome.storage.local.set({
+            'urlIntermediaDeclaracion': url,
+            'urlIntermediaTimestamp': Date.now()
+        });
+        
+        console.log('✅ URL intermedia guardada correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error guardando URL intermedia:', error);
+    }
+};
+
+/**
+ * Recupera la URL intermedia guardada
+ */
+const recuperarUrlIntermedia = async () => {
+    try {
+        // Intentar recuperar de múltiples fuentes
+        let url = localStorage.getItem('urlIntermediaDeclaracion') || 
+                  sessionStorage.getItem('urlIntermediaDeclaracion');
+        
+        if (!url) {
+            const result = await chrome.storage.local.get(['urlIntermediaDeclaracion']);
+            url = result.urlIntermediaDeclaracion;
+        }
+        
+        console.log(`📂 URL intermedia recuperada: ${url}`);
+        return url;
+        
+    } catch (error) {
+        console.error('❌ Error recuperando URL intermedia:', error);
+        return null;
+    }
+};
+
+/**
+ * Verifica el estado de la declaración jurada en la página intermedia
+ * Esta es la página que aparece después de hacer clic en "Siguiente" tras completar productos
+ * Aquí es donde se muestra si la declaración está FIRMADA o PENDIENTE
+ */
+const verificarEstadoDeclaracionJuradaEnPaginaIntermedia = async () => {
+    console.log('🔍 Verificando estado de declaración jurada en página intermedia...');
+    
+    try {
+        // SELECTORES ESPECÍFICOS PARA BUSCAR EL ESTADO EN LA PÁGINA INTERMEDIA
+        const selectoresEstado = [
+            // Estados FIRMADA
+            'span[color="success"]:contains("FIRMADA")',
+            'span[class*="sc-claXon"][class*="cLWwML"]:contains("FIRMADA")', 
+            'span[class*="success"]:contains("FIRMADA")',
+            '.badge-success:contains("FIRMADA")',
+            '.badgedj_firmada',
+            '.badgedj_ok',
+            '#badgedj.badgedj_firmada',
+            '#dj_estado.texto_firmada',
+            '.texto_firmada',
+            '[class*="verde"]:contains("FIRMADA")',
+            
+            // Estados PENDIENTE  
+            'span[color="warning"]:contains("PENDIENTE")',
+            'span[color="error"]:contains("PENDIENTE")',
+            '.badge-warning:contains("PENDIENTE")',
+            '.badge-danger:contains("PENDIENTE")',
+            '.badgedj_pendiente',
+            '#badgedj.badgedj_pendiente',
+            '#dj_estado.texto_pendiente',
+            '.texto_pendiente',
+            '[class*="amarillo"]:contains("PENDIENTE")',
+            '[class*="rojo"]:contains("PENDIENTE")'
+        ];
+
+        // 🎯 VERIFICACIÓN ESPECÍFICA PARA LA ESTRUCTURA CONOCIDA
+        console.log('🔍 Verificando estructura específica #badgedj...');
+        console.log(`📍 URL actual en verificación: ${window.location.href}`);
+        console.log(`📄 Título página: ${document.title}`);
+        
+        // Debug: Ver todos los elementos con ID badgedj o clases relacionadas
+        console.log('🔍 DEBUG: Buscando elementos relacionados...');
+        const elementosBadge = document.querySelectorAll('*[id*="badge"], *[class*="badge"], *[id*="dj"], *[class*="dj"]');
+        console.log(`📊 Elementos badge/dj encontrados: ${elementosBadge.length}`);
+        elementosBadge.forEach((el, i) => {
+            console.log(`   ${i+1}. ${el.tagName}#${el.id}.${el.className} - Texto: "${el.textContent?.trim().substring(0, 50)}"`);
+        });
+        
+        const badgeDJ = document.querySelector('#badgedj');
+        if (badgeDJ) {
+            console.log(`✅ Elemento #badgedj encontrado`);
+            console.log(`📍 Clase: ${badgeDJ.className}`);
+            console.log(`📝 Texto completo: "${badgeDJ.textContent?.trim()}"`);
+            
+            // Verificar por clase del contenedor
+            if (badgeDJ.className.includes('badgedj_firmada')) {
+                console.log('✅ FIRMADA detectada por clase badgedj_firmada');
+                return {
+                    firmada: true,
+                    estado: 'FIRMADA',
+                    elemento: `#badgedj.${badgeDJ.className}`,
+                    ubicacion: 'página intermedia (#badgedj específico)'
+                };
+            } else if (badgeDJ.className.includes('badgedj_pendiente')) {
+                console.log('⚠️ PENDIENTE detectada por clase badgedj_pendiente');
+                return {
+                    firmada: false,
+                    estado: 'PENDIENTE',
+                    elemento: `#badgedj.${badgeDJ.className}`,
+                    ubicacion: 'página intermedia (#badgedj específico)'
+                };
+            }
+            
+            // Verificar el span interno #dj_estado
+            const spanEstado = badgeDJ.querySelector('#dj_estado');
+            if (spanEstado) {
+                const textoEstado = spanEstado.textContent?.trim().toUpperCase();
+                console.log(`📝 Texto en #dj_estado: "${textoEstado}"`);
+                console.log(`📍 Clase #dj_estado: "${spanEstado.className}"`);
+                
+                if (textoEstado === 'FIRMADA' || spanEstado.className.includes('texto_firmada')) {
+                    console.log('✅ FIRMADA detectada en #dj_estado');
+                    return {
+                        firmada: true,
+                        estado: 'FIRMADA',
+                        elemento: `#dj_estado.${spanEstado.className}`,
+                        ubicacion: 'página intermedia (#dj_estado específico)'
+                    };
+                } else if (textoEstado === 'PENDIENTE' || spanEstado.className.includes('texto_pendiente')) {
+                    console.log('⚠️ PENDIENTE detectada en #dj_estado');
+                    return {
+                        firmada: false,
+                        estado: 'PENDIENTE',
+                        elemento: `#dj_estado.${spanEstado.className}`,
+                        ubicacion: 'página intermedia (#dj_estado específico)'
+                    };
+                }
+            }
+        } else {
+            console.log('⚠️ Elemento #badgedj NO encontrado');
+            
+            // 🔍 BÚSQUEDA ALTERNATIVA POR PATRONES CONOCIDOS
+            console.log('🔍 Intentando búsqueda alternativa...');
+            
+            // Buscar por texto "FIRMADA" en elementos con clases React/MUI
+            const elementosFirmada = document.querySelectorAll('*');
+            for (const el of elementosFirmada) {
+                const texto = el.textContent?.trim().toUpperCase();
+                if (texto === 'FIRMADA') {
+                    console.log(`✅ FIRMADA encontrada en elemento alternativo:`);
+                    console.log(`   Tag: ${el.tagName}, ID: ${el.id}, Clase: ${el.className}`);
+                    console.log(`   Texto: "${el.textContent?.trim()}"`);
+                    
+                    // Verificar si es el elemento correcto (tiene clases Material-UI)
+                    if (el.className.includes('sc-claXon') || el.className.includes('cLWwML') || 
+                        el.getAttribute('color') === 'success') {
+                        console.log('✅ Elemento FIRMADA Material-UI confirmado');
+                        return {
+                            firmada: true,
+                            estado: 'FIRMADA',
+                            elemento: `${el.tagName}.${el.className}`,
+                            ubicacion: 'página intermedia (búsqueda alternativa MUI)'
+                        };
+                    }
+                }
+                
+                if (texto === 'PENDIENTE') {
+                    console.log(`⚠️ PENDIENTE encontrado en elemento alternativo:`);
+                    console.log(`   Tag: ${el.tagName}, ID: ${el.id}, Clase: ${el.className}`);
+                    console.log(`   Texto: "${el.textContent?.trim()}"`);
+                    
+                    // Para PENDIENTE, aceptar cualquier elemento que lo contenga
+                    if (el.id === 'dj_estado' || el.className.includes('texto_pendiente') ||
+                        el.className.includes('badgedj')) {
+                        console.log('⚠️ Elemento PENDIENTE confirmado');
+                        return {
+                            firmada: false,
+                            estado: 'PENDIENTE',
+                            elemento: `${el.tagName}.${el.className}`,
+                            ubicacion: 'página intermedia (búsqueda alternativa)'
+                        };
+                    }
+                }
+            }
+            
+            console.log('ℹ️ Búsqueda alternativa sin resultados, continuando con selectores generales...');
+        }
+
+        // Buscar por selectores específicos
+        console.log('🔍 Buscando por selectores CSS específicos...');
+        for (const selector of selectoresEstado) {
+            try {
+                const baseSelector = selector.split(':contains')[0];
+                const elementos = document.querySelectorAll(baseSelector);
+                
+                for (const elemento of elementos) {
+                    const texto = elemento.textContent?.trim().toUpperCase();
+                    if (texto) {
+                        if (texto.includes('FIRMADA')) {
+                            console.log(`✅ Estado FIRMADA encontrado con selector: ${baseSelector}`);
+                            console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                            console.log(`📝 Texto: "${elemento.textContent.trim()}"`);
+                            
+                            return {
+                                firmada: true,
+                                estado: 'FIRMADA',
+                                elemento: `${elemento.tagName}.${elemento.className}`,
+                                ubicacion: 'página intermedia'
+                            };
+                        } else if (texto.includes('PENDIENTE')) {
+                            console.log(`⚠️ Estado PENDIENTE encontrado con selector: ${baseSelector}`);
+                            console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                            console.log(`📝 Texto: "${elemento.textContent.trim()}"`);
+                            
+                            return {
+                                firmada: false,
+                                estado: 'PENDIENTE',
+                                elemento: `${elemento.tagName}.${elemento.className}`,
+                                ubicacion: 'página intermedia'
+                            };
+                        }
+                    }
+                }
+            } catch (e) {
+                // Continuar con siguiente selector
+            }
+        }
+
+        // Búsqueda exhaustiva en toda la página
+        console.log('🔍 Realizando búsqueda exhaustiva en página intermedia...');
+        const todosElementos = document.querySelectorAll('*');
+        
+        for (const elemento of todosElementos) {
+            const texto = elemento.textContent?.trim();
+            if (texto) {
+                const textoUpper = texto.toUpperCase();
+                
+                // Buscar FIRMADA
+                if ((textoUpper === 'FIRMADA' || 
+                     textoUpper.includes('DECLARACIÓN FIRMADA') ||
+                     textoUpper.includes('DJ FIRMADA')) &&
+                    (elemento.className.includes('sc-') || 
+                     elemento.className.includes('badge') ||
+                     elemento.className.includes('status') ||
+                     elemento.tagName === 'SPAN')) {
+                    
+                    console.log(`✅ Estado FIRMADA encontrado en búsqueda exhaustiva`);
+                    console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                    console.log(`📝 Texto: "${texto}"`);
+                    
+                    return {
+                        firmada: true,
+                        estado: 'FIRMADA',
+                        elemento: `${elemento.tagName}.${elemento.className}`,
+                        ubicacion: 'página intermedia (exhaustiva)'
+                    };
+                }
+                
+                // Buscar PENDIENTE
+                if ((textoUpper === 'PENDIENTE' || 
+                     textoUpper.includes('DECLARACIÓN PENDIENTE') ||
+                     textoUpper.includes('DJ PENDIENTE')) &&
+                    (elemento.className.includes('sc-') || 
+                     elemento.className.includes('badge') ||
+                     elemento.className.includes('status') ||
+                     elemento.tagName === 'SPAN')) {
+                    
+                    console.log(`⚠️ Estado PENDIENTE encontrado en búsqueda exhaustiva`);
+                    console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                    console.log(`📝 Texto: "${texto}"`);
+                    
+                    return {
+                        firmada: false,
+                        estado: 'PENDIENTE',
+                        elemento: `${elemento.tagName}.${elemento.className}`,
+                        ubicacion: 'página intermedia (exhaustiva)'
+                    };
+                }
+            }
+        }
+
+        // Buscar en texto de la página para patrones específicos
+        const contenidoPagina = document.body.textContent.toUpperCase();
+        if (contenidoPagina.includes('DECLARACIÓN JURADA') || contenidoPagina.includes('DECLARACIÓN')) {
+            console.log('🔍 Página contiene referencias a declaración jurada...');
+            
+            // Buscar patrones específicos en el contenido
+            if (contenidoPagina.includes('FIRMADA')) {
+                console.log('✅ Patrón FIRMADA encontrado en contenido general');
+                return {
+                    firmada: true,
+                    estado: 'FIRMADA (detectado en contenido)',
+                    elemento: 'contenido general',
+                    ubicacion: 'página intermedia'
+                };
+            } else if (contenidoPagina.includes('PENDIENTE')) {
+                console.log('⚠️ Patrón PENDIENTE encontrado en contenido general');
+                return {
+                    firmada: false,
+                    estado: 'PENDIENTE (detectado en contenido)',
+                    elemento: 'contenido general',
+                    ubicacion: 'página intermedia'
+                };
+            }
+        }
+
+        // Si no se encuentra indicador específico, asumir pendiente
+        console.log('⚠️ No se encontró indicador específico de estado');
+        console.log('🔄 Asumiendo que necesita verificación adicional');
+        
+        return {
+            firmada: false,
+            estado: 'DESCONOCIDO - Requiere verificación',
+            elemento: 'ninguno encontrado',
+            ubicacion: 'página intermedia'
+        };
+
+    } catch (error) {
+        console.error('❌ Error verificando estado en página intermedia:', error);
+        return {
+            firmada: false,
+            estado: 'ERROR',
+            elemento: 'error',
+            ubicacion: 'página intermedia'
+        };
+    }
+};
+
+/**
+ * Navega a la declaración jurada para firmarla cuando está pendiente
+ * Construye la URL específica de declaración jurada y navega allí
+ */
+const navegarADeclaracionJuradaParaFirmar = async () => {
+    console.log('🔄 Navegando a declaración jurada para firmarla...');
+    
+    try {
+        // Obtener número de licitación
+        let numeroLicitacion = null;
+        
+        // 1. Buscar en automationData de la extensión
+        if (window.licitacionAutomation && window.licitacionAutomation.licitacionId) {
+            numeroLicitacion = window.licitacionAutomation.licitacionId;
+            console.log(`✅ Usando licitacionId de la extensión: ${numeroLicitacion}`);
+        }
+        
+        // 2. Buscar en la URL actual
+        if (!numeroLicitacion) {
+            const urlActual = window.location.href;
+            const matches = urlActual.match(/(\d+-\d+-\w+)/);
+            if (matches) {
+                numeroLicitacion = matches[1];
+                console.log(`✅ Número extraído de URL actual: ${numeroLicitacion}`);
+            }
+        }
+
+        // 2.1 Buscar en el título de la página
+        if (!numeroLicitacion) {
+            const titulo = document.title;
+            const matchesTitulo = titulo.match(/(\d+-\d+-\w+)/);
+            if (matchesTitulo) {
+                numeroLicitacion = matchesTitulo[1];
+                console.log(`✅ Número extraído del título: ${numeroLicitacion}`);
+            }
+        }
+
+        // 2.2 Buscar en texto visible de la página
+        if (!numeroLicitacion) {
+            const textoCompleto = document.body.textContent;
+            const matchesTexto = textoCompleto.match(/Adquisición\s+(\d+-\d+-\w+)/);
+            if (matchesTexto) {
+                numeroLicitacion = matchesTexto[1];
+                console.log(`✅ Número extraído del texto "Adquisición": ${numeroLicitacion}`);
+            }
+        }
+        
+        // 3. Buscar en elementos de la página
+        if (!numeroLicitacion) {
+            const selectoresNumero = [
+                '.bidRFBExternalCode',
+                'input[name*="codigo"]',
+                'input[name*="licitacion"]',
+                'input[id*="codigo"]',
+                'span:contains("434-90-LE25")',
+                'div:contains("434-90-LE25")',
+                'td:contains("434-90-LE25")',
+                '[class*="licitacion"]',
+                '[id*="licitacion"]'
+            ];
+            
+            for (const selector of selectoresNumero) {
+                const elementos = document.querySelectorAll(selector.replace(':contains', ''));
+                for (const elemento of elementos) {
+                    // Buscar en value si es input
+                    if (elemento.value && /\d+-\d+-\w+/.test(elemento.value)) {
+                        numeroLicitacion = elemento.value;
+                        console.log(`✅ Número encontrado en value de ${selector}: ${numeroLicitacion}`);
+                        break;
+                    }
+                    // Buscar en textContent
+                    if (elemento.textContent && /\d+-\d+-\w+/.test(elemento.textContent)) {
+                        const match = elemento.textContent.match(/(\d+-\d+-\w+)/);
+                        if (match) {
+                            numeroLicitacion = match[1];
+                            console.log(`✅ Número encontrado en textContent de ${selector}: ${numeroLicitacion}`);
+                            break;
+                        }
+                    }
+                }
+                if (numeroLicitacion) break;
+            }
+        }
+        
+        if (!numeroLicitacion) {
+            throw new Error('No se pudo obtener el número de licitación para construir URL de DJ');
+        }
+        
+        // CONSTRUIR URL DE DECLARACIÓN JURADA
+        const urlDeclaracion = `https://proveedor.mercadopublico.cl/dj-requisitos/${numeroLicitacion}`;
+        
+        console.log(`🔗 URL de declaración jurada: ${urlDeclaracion}`);
+        console.log('🔄 Navegando a la declaración jurada...');
+        
+        // NAVEGAR A LA DECLARACIÓN JURADA
+        window.location.href = urlDeclaracion;
+        
+        // Esperar a que cargue la nueva página
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        console.log('✅ Navegación a declaración jurada iniciada');
+        
+    } catch (error) {
+        console.error('❌ Error navegando a declaración jurada:', error);
+        throw error;
+    }
+};
+
+/**
+ * Regresa a la URL intermedia después de firmar la declaración jurada
+ * Esta función se usa cuando necesitamos volver al flujo principal
+ */
+const regresarAUrlIntermedia = async () => {
+    console.log('🔄 Regresando a URL intermedia después de firmar...');
+    
+    try {
+        const urlIntermedia = await recuperarUrlIntermedia();
+        
+        if (!urlIntermedia) {
+            console.warn('⚠️ No se encontró URL intermedia guardada');
+            console.log('🔄 Intentando usar historial del navegador...');
+            window.history.back();
+            return;
+        }
+        
+        console.log(`🔗 Navegando de regreso a: ${urlIntermedia}`);
+        window.location.href = urlIntermedia;
+        
+        // Esperar a que cargue
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        console.log('✅ Regreso a URL intermedia completado');
+        
+    } catch (error) {
+        console.error('❌ Error regresando a URL intermedia:', error);
+        // Fallback: usar historial
+        window.history.back();
+    }
+};
+
+/**
+ * Verifica el estado de la declaración jurada específicamente en la página de documentos
+ * antes de hacer clic en el enlace "Declarar y firmar"
+ * Esta función busca el indicador visual de estado FIRMADA que aparece junto al enlace
+ */
+const verificarEstadoDeclaracionJuradaEnPaginaDocumentos = async () => {
+    console.log('🔍 Verificando estado de declaración jurada en página de documentos...');
+    
+    try {
+        // Buscar el indicador visual de estado FIRMADA en la página de documentos
+        // Este aparece como un elemento con clase "sc-claXon cLWwML" y texto "FIRMADA"
+        const selectoresFirmada = [
+            'span[class*="sc-claXon"][class*="cLWwML"]:contains("FIRMADA")',
+            'span[class*="sc-claXon"]:contains("FIRMADA")', 
+            'span[class*="cLWwML"]:contains("FIRMADA")',
+            'span[color="success"]:contains("FIRMADA")',
+            '[class*="success"]:contains("FIRMADA")',
+            '[class*="verde"]:contains("FIRMADA")',
+            '[class*="firmada"i]',
+            '.badgedj_firmada',
+            '.badgedj_ok'
+        ];
+
+        // Buscar primero por selectores CSS específicos
+        for (const selector of selectoresFirmada) {
+            try {
+                const elementos = document.querySelectorAll(selector.split(':contains')[0]);
+                for (const elemento of elementos) {
+                    const texto = elemento.textContent?.trim().toUpperCase();
+                    if (texto && texto.includes('FIRMADA')) {
+                        console.log(`✅ Estado FIRMADA encontrado con selector: ${selector}`);
+                        console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                        console.log(`📝 Texto: "${elemento.textContent.trim()}"`);
+                        return {
+                            firmada: true,
+                            estado: 'FIRMADA',
+                            elemento: `${elemento.tagName}.${elemento.className}`,
+                            ubicacion: 'página de documentos'
+                        };
+                    }
+                }
+            } catch (e) {
+                // Continuar con el siguiente selector
+            }
+        }
+
+        // Búsqueda exhaustiva en todos los elementos de la página
+        console.log('🔍 Realizando búsqueda exhaustiva en página de documentos...');
+        const todosElementos = document.querySelectorAll('*');
+        
+        for (const elemento of todosElementos) {
+            const texto = elemento.textContent?.trim();
+            if (texto) {
+                // Buscar variaciones de "FIRMADA"
+                const textoUpper = texto.toUpperCase();
+                if (textoUpper === 'FIRMADA' || 
+                    textoUpper.includes('FIRMADA') ||
+                    textoUpper.includes('DECLARACIÓN FIRMADA') ||
+                    textoUpper.includes('DJ FIRMADA')) {
+                    
+                    // Verificar que no sea el contenido general de la página sino un indicador específico
+                    if (elemento.className.includes('sc-') || 
+                        elemento.className.includes('badge') ||
+                        elemento.className.includes('status') ||
+                        elemento.className.includes('estado') ||
+                        elemento.tagName === 'SPAN') {
+                        
+                        console.log(`✅ Estado FIRMADA encontrado en búsqueda exhaustiva`);
+                        console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                        console.log(`📝 Texto completo: "${texto}"`);
+                        
+                        return {
+                            firmada: true,
+                            estado: 'FIRMADA',
+                            elemento: `${elemento.tagName}.${elemento.className}`,
+                            ubicacion: 'página de documentos (búsqueda exhaustiva)'
+                        };
+                    }
+                }
+            }
+        }
+
+        // Buscar específicamente en el área donde aparece el enlace "Declarar y firmar"
+        console.log('🔍 Buscando estado cerca del enlace "Declarar y firmar"...');
+        
+        // Primero encontrar el enlace de declaración
+        const enlaceDeclarar = document.querySelector('a[href*="ir_a_fimar"], a[onclick*="ir_a_fimar"]');
+        if (enlaceDeclarar) {
+            console.log('✅ Enlace "Declarar y firmar" encontrado');
+            
+            // Buscar elementos hermanos o contenedores cercanos
+            const contenedor = enlaceDeclarar.closest('div, td, tr');
+            if (contenedor) {
+                const elementosEnContenedor = contenedor.querySelectorAll('span, div, td');
+                for (const elem of elementosEnContenedor) {
+                    const textoElem = elem.textContent?.trim().toUpperCase();
+                    if (textoElem && textoElem.includes('FIRMADA')) {
+                        console.log(`✅ Estado FIRMADA encontrado cerca del enlace`);
+                        console.log(`📍 Elemento: ${elem.tagName}.${elem.className}`);
+                        console.log(`📝 Texto: "${elem.textContent.trim()}"`);
+                        
+                        return {
+                            firmada: true,
+                            estado: 'FIRMADA',
+                            elemento: `${elem.tagName}.${elem.className}`,
+                            ubicacion: 'cerca del enlace declarar y firmar'
+                        };
+                    }
+                }
+            }
+        }
+
+        // Buscar en iframe si existe
+        const iframe = document.querySelector('#ctl00_mpcphFormWizardFields__IFrameAttachment');
+        if (iframe && iframe.contentDocument) {
+            console.log('🔍 Buscando estado FIRMADA dentro del iframe...');
+            const iframeDoc = iframe.contentDocument;
+            const elementosIframe = iframeDoc.querySelectorAll('*');
+            
+            for (const elem of elementosIframe) {
+                const textoIframe = elem.textContent?.trim().toUpperCase();
+                if (textoIframe && textoIframe.includes('FIRMADA')) {
+                    console.log(`✅ Estado FIRMADA encontrado en iframe`);
+                    console.log(`📍 Elemento iframe: ${elem.tagName}.${elem.className}`);
+                    console.log(`📝 Texto iframe: "${elem.textContent.trim()}"`);
+                    
+                    return {
+                        firmada: true,
+                        estado: 'FIRMADA',
+                        elemento: `iframe: ${elem.tagName}.${elem.className}`,
+                        ubicacion: 'dentro del iframe de documentos'
+                    };
+                }
+            }
+        }
+
+        // Si no se encontró FIRMADA, verificar si hay indicadores de PENDIENTE
+        console.log('🔍 No se encontró FIRMADA, verificando estados pendientes...');
+        
+        const selectoresPendiente = [
+            '.badgedj_pendiente',
+            '[class*="pendiente"i]',
+            '[class*="pending"i]',
+            'span:contains("PENDIENTE")',
+            'span:contains("PENDING")'
+        ];
+
+        for (const selector of selectoresPendiente) {
+            try {
+                const elementos = document.querySelectorAll(selector.split(':contains')[0]);
+                for (const elemento of elementos) {
+                    const texto = elemento.textContent?.trim().toUpperCase();
+                    if (texto && (texto.includes('PENDIENTE') || texto.includes('PENDING'))) {
+                        console.log(`⚠️ Estado PENDIENTE confirmado con selector: ${selector}`);
+                        console.log(`📍 Elemento: ${elemento.tagName}.${elemento.className}`);
+                        
+                        return {
+                            firmada: false,
+                            estado: 'PENDIENTE',
+                            elemento: `${elemento.tagName}.${elemento.className}`,
+                            ubicacion: 'página de documentos'
+                        };
+                    }
+                }
+            } catch (e) {
+                // Continuar
+            }
+        }
+
+        // Estado por defecto si no se encuentra indicador específico
+        console.log('⚠️ No se encontró indicador específico de estado');
+        console.log('🔄 Asumiendo que necesita ser firmada');
+        
+        return {
+            firmada: false,
+            estado: 'DESCONOCIDO - Asumiendo PENDIENTE',
+            elemento: 'ninguno encontrado',
+            ubicacion: 'página de documentos'
+        };
+
+    } catch (error) {
+        console.error('❌ Error verificando estado en página de documentos:', error);
+        return {
+            firmada: false,
+            estado: 'ERROR',
+            elemento: 'error',
+            ubicacion: 'página de documentos'
+        };
+    }
+};
+
+/**
+ * Navega de regreso a la página de oferta después de completar la declaración jurada
+ * Utiliza múltiples estrategias para asegurar la navegación correcta
+ */
+const regresarALaOferta = async () => {
+    console.log('🔄 Iniciando regreso a la página de oferta...');
+    
+    try {
+        // Estrategia 1: Buscar botón "Regresar" o similar
+        const botonesRegreso = [
+            'button[data-testid*="back"]',
+            'button[data-testid*="return"]', 
+            'button[aria-label*="Volver"]',
+            'button[aria-label*="Regresar"]',
+            'button:contains("Volver")',
+            'button:contains("Regresar")',
+            'button:contains("Continuar")',
+            '.MuiButton-root:contains("Volver")',
+            '.MuiButton-root:contains("Regresar")',
+            '.MuiButton-root:contains("Continuar")',
+            '[class*="Button"]:contains("Volver")',
+            '[class*="Button"]:contains("Regresar")'
+        ];
+
+        for (const selector of botonesRegreso) {
+            const boton = document.querySelector(selector);
+            if (boton && boton.offsetParent !== null) {
+                console.log(`✅ Encontrado botón de regreso: ${selector}`);
+                
+                // Intentar click con múltiples métodos
+                const clickExitoso = await ejecutarClickConFallbacks(boton);
+                if (clickExitoso) {
+                    console.log('✅ Click en botón de regreso exitoso');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return true;
+                }
+            }
+        }
+
+        // Estrategia 2: Buscar enlaces o botones con texto específico en todo el DOM
+        const todosLosElementos = document.querySelectorAll('*');
+        for (const elemento of todosLosElementos) {
+            const texto = elemento.textContent?.trim();
+            if (texto && (
+                texto.includes('Volver') || 
+                texto.includes('Regresar') ||
+                texto.includes('Continuar') ||
+                texto.includes('Ofertar') ||
+                texto.includes('Mi oferta')
+            )) {
+                // Verificar que sea clickeable
+                if ((elemento.tagName === 'BUTTON' || 
+                     elemento.tagName === 'A' || 
+                     elemento.onclick ||
+                     elemento.style.cursor === 'pointer' ||
+                     elemento.className.includes('Button')) &&
+                    elemento.offsetParent !== null) {
+                    
+                    console.log(`🔍 Intentando click en elemento: ${texto} (${elemento.tagName})`);
+                    const clickExitoso = await ejecutarClickConFallbacks(elemento);
+                    if (clickExitoso) {
+                        console.log('✅ Navegación exitosa via elemento clickeable');
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Estrategia 3: Navegación por historial del navegador
+        console.log('🔄 Intentando navegación por historial...');
+        window.history.back();
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Verificar si estamos en página de oferta
+        if (window.location.href.includes('ofertar') || 
+            document.querySelector('[data-testid*="offer"]') ||
+            document.querySelector('.offer-') ||
+            document.title.toLowerCase().includes('oferta')) {
+            console.log('✅ Regreso exitoso via historial del navegador');
+            return true;
+        }
+
+        // Estrategia 4: Buscar URL de oferta en localStorage o sessionStorage
+        console.log('🔍 Buscando URL de oferta en storage...');
+        const urlOferta = localStorage.getItem('urlOferta') || 
+                         sessionStorage.getItem('urlOferta') ||
+                         localStorage.getItem('currentOfferUrl');
+        
+        if (urlOferta) {
+            console.log(`🔄 Navegando a URL guardada: ${urlOferta}`);
+            window.location.href = urlOferta;
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            return true;
+        }
+
+        // Estrategia 5: Reconstruir URL de oferta basada en la actual
+        const urlActual = window.location.href;
+        const matches = urlActual.match(/\/licitacion\/(\d+)/);
+        if (matches) {
+            const licitacionId = matches[1];
+            const urlOfertaReconstruida = `${window.location.origin}/licitacion/${licitacionId}/ofertar`;
+            console.log(`🔄 Navegando a URL reconstruida: ${urlOfertaReconstruida}`);
+            window.location.href = urlOfertaReconstruida;
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            return true;
+        }
+
+        // Estrategia 6: Presionar Escape para cerrar modales y buscar navegación
+        console.log('🔄 Intentando cerrar modales con Escape...');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27 }));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Buscar nuevamente botones después de cerrar modales
+        for (const selector of botonesRegreso) {
+            const boton = document.querySelector(selector);
+            if (boton && boton.offsetParent !== null) {
+                console.log(`✅ Botón encontrado después de Escape: ${selector}`);
+                const clickExitoso = await ejecutarClickConFallbacks(boton);
+                if (clickExitoso) {
+                    console.log('✅ Navegación exitosa después de cerrar modales');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return true;
+                }
+            }
+        }
+
+        console.log('⚠️ No se pudo regresar automáticamente a la oferta');
+        return false;
+
+    } catch (error) {
+        console.error('❌ Error al regresar a la oferta:', error);
         return false;
     }
 };
