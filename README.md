@@ -2,7 +2,18 @@
 
 **Extensión Chrome para automatizar completamente el proceso de postulación a licitaciones desde PharmaTender hacia Mercado Público.**
 
-## ✅ Estado: IMPLEMENTACIÓN COMPLETA v1.0.0
+## ✅ Estado: IMPLEMENTACIÓN COMPLETA v1.0.1 - MEJORAS CRÍTICAS APLICADAS
+
+### 🆕 **Última Actualización (v1.0.1)**
+**Fecha**: 28 Noviembre 2025
+**Mejoras Críticas Implementadas**:
+- ✅ **Detección correcta** de DJ ya firmada (replica Python líneas 774-792)
+- ✅ **Manejo robusto de iframes** con IFrameManager dedicado
+- ✅ **Delays exactos** en modales (replica Python líneas 822-901)  
+- ✅ **NO repetir proceso** si ya está firmada
+- ✅ **Arquitectura mejorada** con clases especializadas
+
+> Ver detalles completos en `MEJORAS_IMPLEMENTADAS.md`
 
 ### 🎯 Funcionalidades Principales
 
@@ -45,9 +56,34 @@
 ```
 
 ### 📊 Estadísticas del Código
-- **Total líneas:** ~12,000+
+- **Total líneas:** ~12,100+
 - **Funciones principales:** 10 pasos de automatización
-- **Funciones auxiliares:** 18 helpers robustos  
+- **Funciones auxiliares:** 18 helpers robustos
+- **Clases especializadas:** 3 (LicitacionAutomation, IFrameManager, DeclaracionJuradaManager)
+
+### 🔧 Arquitectura Mejorada (v1.0.1)
+
+#### **Nuevas Clases Especializadas**:
+```javascript
+// 🎯 Manejo robusto de iframes (replica Selenium)
+class IFrameManager {
+    switchToDocumentFrame()     // Como driver.switch_to.frame()
+    switchToDefaultContent()    // Como driver.switch_to.default_content()
+    findElement()              // Búsqueda en contexto correcto
+}
+
+// 🖊️ Lógica específica de Declaración Jurada
+class DeclaracionJuradaManager {
+    verificarEstadoFirma()     // Replica Python líneas 774-792
+    firmarSinClaveUnica()      // Replica Python líneas 822-901
+}
+```
+
+#### **Flujo Mejorado**:
+1. **Verificación ANTES de acción** (evita repetir proceso)
+2. **Cambio correcto de contexto iframe** 
+3. **Delays exactos** replicando Python
+4. **Manejo robusto de modales** con estrategias múltiples  
 - **Cobertura:** 100% del script Python original + mejoras
 
 ## 🚀 Instalación Rápida

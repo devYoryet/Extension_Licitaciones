@@ -1536,40 +1536,74 @@ class LicitacionAutomation {
                             return; // SALIR - no hacer nada más aquí
                         }
                         
-                        // 🎯 NUEVA LÓGICA: VERIFICAR ESTADO DE DECLARACIÓN JURADA PRIMERO
+                        // 🛡️ VERIFICAR SI YA PROCESAMOS ESTA LICITACIÓN (evitar bucle infinito)
+                        const procesadoKey = `djProcesada_${this.licitacionId}`;
+                        const procesadoData = await chrome.storage.local.get(procesadoKey);
+                        
+                        if (procesadoData[procesadoKey]) {
+                            const tiempoTranscurrido = Date.now() - procesadoData[procesadoKey].timestamp;
+                            const minutos = Math.round(tiempoTranscurrido / 60000);
+                            
+                            console.log('');
+                            console.log('🛡️ ¡BUCLE INFINITO DETECTADO Y PREVENIDO!');
+                            console.log(`📋 Esta licitación ya fue procesada hace ${minutos} minutos`);
+                            console.log(`📊 Estado anterior: ${procesadoData[procesadoKey].estado}`);
+                            console.log('🔄 Saltando directo a siguiente paso...');
+                            console.log('');
+                            
+                            // DJ YA PROCESADA - IR DIRECTO A SIGUIENTE PASO SIN CARGAR DOCUMENTOS
+                            console.log('🔄 DJ ya procesada - Haciendo click directo en Siguiente...');
+                            console.log('⚠️ SALTANDO carga de documentos - DJ completada previamente');
+                            await this.clickSiguiente();
+                            return;
+                        }
+        
+                        // 🎯 CRÍTICO: VERIFICAR ESTADO DE DJ DENTRO DEL IFRAME (como Python líneas 774-792)
                         console.log('');
-                        console.log('🔍 VERIFICANDO ESTADO DE DECLARACIÓN JURADA EN PÁGINA WizAttachment...');
+                        console.log('🔍 VERIFICANDO ESTADO DE DECLARACIÓN JURADA DENTRO DEL IFRAME...');
+                        console.log('⚠️ SIGUIENDO PROCESO PYTHON: Verificar #dj_estado DENTRO del iframe');
                         console.log('');
                         
-                        const estadoDJ = await verificarEstadoDeclaracionJuradaEnPaginaIntermedia();
-                        
-                        console.log('📊 RESULTADO DE VERIFICACIÓN EN WizAttachment:');
+                        const estadoDJ = await this.verificarEstadoDJEnIframe();
+        
+                        console.log('📊 RESULTADO DE VERIFICACIÓN CRÍTICA:');
                         console.log(`   - Estado: ${estadoDJ.estado}`);
                         console.log(`   - ¿Firmada?: ${estadoDJ.firmada}`);
-                        console.log(`   - Elemento: ${estadoDJ.elemento}`);
-                        console.log(`   - Ubicación: ${estadoDJ.ubicacion}`);
-                        
+                        console.log(`   - Requiere acción: ${estadoDJ.requiereAccion}`);
+                        console.log(`   - Mensaje: ${estadoDJ.mensaje}`);
+        
                         if (estadoDJ.firmada) {
                             console.log('');
-                            console.log('✅ DECLARACIÓN JURADA YA ESTÁ FIRMADA');
-                            console.log('🔄 CONTINUANDO CON CARGA DE DOCUMENTOS - NO ENTRANDO A DJ');
+                            console.log('✅ ✅ ✅ DJ YA FIRMADA - SIGUIENDO PATRÓN PYTHON ✅ ✅ ✅');
+                            console.log('📋 Python líneas 774-792: "YA ESTÁ FIRMADA - SALTAR PROCESO"');
+                            console.log('🔄 Continuando al siguiente paso sin procesar DJ');
                             console.log('');
+                            
+                            // CRÍTICO: Marcar que YA PROCESAMOS esta licitación para evitar bucle
+                            const procesadoKey = `djProcesada_${this.licitacionId}`;
+                            await chrome.storage.local.set({
+                                [procesadoKey]: {
+                                    processed: true,
+                                    estado: 'FIRMADA',
+                                    timestamp: Date.now()
+                                }
+                            });
+                            console.log('🛡️ Marcado como procesado para evitar bucle infinito');
                             
                             // Actualizar indicador
-                            this.updateIndicator('✅ DJ firmada - Cargando documentos...', 'processing');
+                            this.updateIndicator('✅ DJ firmada - Continuando...', 'processing');
                             
-                            // PROCEDER NORMALMENTE CON DOCUMENTOS
-                            console.log('📄 PROCEDIENDO A CARGAR DOCUMENTOS...');
-                            await this.cargarDocumentos();
-                            console.log('✅ DOCUMENTOS CARGADOS');
-                            
-                            // SALTAR PROCESO DE DECLARACIÓN JURADA - ya está firmada
-                            console.log('🔄 SALTANDO proceso de declaración jurada - ya firmada');
-                            
-                        } else {
+                            // DJ YA FIRMADA - IR DIRECTO A SIGUIENTE PASO
+                            console.log('🔄 DJ firmada - Haciendo click directo en Siguiente...');
+                            console.log('⚠️ SALTANDO carga de documentos - DJ completada');
+                            await this.clickSiguiente();
+                            return;
+            
+                        } else if (estadoDJ.requiereAccion) {
                             console.log('');
-                            console.log('⚠️ DECLARACIÓN JURADA PENDIENTE - DEBE SER FIRMADA');
-                            console.log(`📋 Estado detectado: ${estadoDJ.estado}`);
+                            console.log('⚠️ DECLARACIÓN JURADA REQUIERE PROCESAMIENTO');
+                            console.log(`📋 Estado: ${estadoDJ.estado}`);
+                            console.log(`💡 Acción: ${estadoDJ.mensaje}`);
                             console.log('🔄 NAVEGANDO A DECLARACIÓN JURADA PARA FIRMARLA...');
                             console.log('');
                             
@@ -1584,8 +1618,7 @@ class LicitacionAutomation {
                             
                             // TERMINAR AQUÍ - el flujo continuará después de firmar
                             return;
-                        }
-                        
+                        }                        
                         // Si llegamos aquí, la DJ ya está firmada - continuar con verificación final
                         console.log('');
                         console.log('🔍 VERIFICACIÓN FINAL: ¿Están los documentos cargados?...');
@@ -3600,6 +3633,123 @@ class LicitacionAutomation {
         } catch (error) {
             console.error(`❌ Error completando precio Item ${itemNumber}:`, error);
             throw error;
+        }
+    }
+
+    // 🎯 FUNCIÓN CRÍTICA: Verificar estado DJ dentro del iframe (Python líneas 774-792)
+    async verificarEstadoDJEnIframe() {
+        console.log('🔍 === VERIFICACIÓN CRÍTICA ESTADO DJ EN IFRAME ===');
+        console.log('📋 Siguiendo patrón Python líneas 774-792');
+        console.log('');
+        
+        try {
+            // 1. Cambiar al iframe de documentos (donde está #dj_estado)
+            console.log('📍 Paso 1: Cambiando al iframe de documentos...');
+            const iframe = await this.waitForElement('#ctl00_mpcphFormWizardFields__IFrameAttachment', 10000);
+            
+            if (!iframe) {
+                console.log('❌ Iframe de documentos no encontrado');
+                return { firmada: false, estado: 'IFRAME_NO_ENCONTRADO', requiereAccion: true };
+            }
+            
+            // Cambiar al contexto del iframe - usar método correcto
+            const iframeElement = iframe.contentWindow || iframe.contentDocument;
+            if (!iframeElement) {
+                throw new Error('No se puede acceder al contenido del iframe');
+            }
+            
+            console.log('✅ Acceso al iframe obtenido');
+            
+            // Cambiar contexto manualmente ya que iframeManager puede no estar disponible
+            let iframeDocument;
+            try {
+                iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+            } catch (e) {
+                throw new Error('No se puede acceder al documento del iframe: ' + e.message);
+            }
+            
+            await this.delay(2000); // Esperar que cargue el contenido del iframe
+            
+            // 2. Buscar elemento #dj_estado DENTRO del iframe
+            console.log('📍 Paso 2: Buscando elemento #dj_estado...');
+            const elementoEstado = iframeDocument.querySelector('#dj_estado');
+            
+            if (!elementoEstado) {
+                console.log('⚠️ Elemento #dj_estado NO encontrado');
+                console.log('📋 Esto significa que probablemente no hay DJ requerida o está en otro estado');
+                
+                // No necesitamos salir del iframe manualmente
+                
+                return { 
+                    firmada: false, 
+                    estado: 'NO_ENCONTRADO', 
+                    requiereAccion: true,
+                    mensaje: 'Elemento #dj_estado no encontrado - proceder con proceso de firma'
+                };
+            }
+            
+            // 3. Leer el texto del estado (CRÍTICO)
+            const textoEstado = elementoEstado.textContent.trim();
+            console.log('📋 Estado encontrado en #dj_estado:', textoEstado);
+            
+            // 4. Evaluar estado según patrón Python
+            if (textoEstado === 'Firmada') {
+                console.log('');
+                console.log('✅ ✅ ✅ DECLARACIÓN JURADA YA ESTÁ FIRMADA ✅ ✅ ✅');
+                console.log('📋 Siguiendo Python: "YA ESTÁ FIRMADA - SALTAR PROCESO"');
+                console.log('🔄 Saltando todo el proceso de firma y continuando...');
+                
+                // No necesitamos salir del iframe manualmente
+                
+                return {
+                    firmada: true,
+                    estado: 'FIRMADA',
+                    requiereAccion: false,
+                    mensaje: 'DJ ya firmada - continuar al siguiente paso'
+                };
+                
+            } else if (textoEstado === 'PENDIENTE') {
+                console.log('');
+                console.log('⚠️ DECLARACIÓN JURADA EN ESTADO PENDIENTE');
+                console.log('📋 Siguiendo Python: verificar permisoPendiente');
+                
+                // No necesitamos salir del iframe manualmente
+                
+                // Por ahora, proceder a firmar (en Python verifica permisoPendiente)
+                return {
+                    firmada: false,
+                    estado: 'PENDIENTE',
+                    requiereAccion: true,
+                    mensaje: 'DJ en estado PENDIENTE - proceder a firmar'
+                };
+                
+            } else {
+                console.log('');
+                console.log(`⚠️ ESTADO DESCONOCIDO: "${textoEstado}"`);
+                console.log('📋 Asumiendo que requiere acción de firma');
+                
+                // No necesitamos salir del iframe manualmente
+                
+                return {
+                    firmada: false,
+                    estado: textoEstado,
+                    requiereAccion: true,
+                    mensaje: `Estado desconocido: ${textoEstado} - intentar proceso de firma`
+                };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error verificando estado DJ en iframe:', error);
+            
+            // El manejo de iframe se hace manualmente, no necesitamos salir
+            
+            return {
+                firmada: false,
+                estado: 'ERROR',
+                requiereAccion: true,
+                error: error.message,
+                mensaje: 'Error verificando estado - intentar proceso de firma'
+            };
         }
     }
 
@@ -10637,6 +10787,106 @@ window.forzarMemoriaDJ = function() {
 };
 
 /**
+ * Función para verificar estado DJ manualmente (debug)
+ */
+window.debugEstadoDJIframe = function() {
+    console.log('🔍 === DEBUG ESTADO DJ EN IFRAME ===');
+    
+    try {
+        // 1. Verificar si estamos en el iframe
+        const enIframe = window !== window.top;
+        console.log(`📍 ¿Estamos en iframe? ${enIframe}`);
+        
+        if (enIframe) {
+            // Ya estamos en iframe, buscar directamente
+            const djEstado = document.querySelector('#dj_estado');
+            if (djEstado) {
+                console.log('✅ Elemento #dj_estado encontrado en iframe');
+                console.log('📋 Estado:', djEstado.textContent.trim());
+                console.log('🏷️ Classes:', djEstado.className);
+                console.log('📦 HTML:', djEstado.outerHTML);
+            } else {
+                console.log('❌ Elemento #dj_estado NO encontrado en iframe');
+            }
+            
+        } else {
+            // Estamos en ventana principal, necesitamos acceder al iframe
+            const iframe = document.querySelector('#ctl00_mpcphFormWizardFields__IFrameAttachment');
+            
+            if (!iframe) {
+                console.log('❌ Iframe #ctl00_mpcphFormWizardFields__IFrameAttachment no encontrado');
+                return;
+            }
+            
+            console.log('✅ Iframe encontrado');
+            console.log('📍 Src:', iframe.src);
+            
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc) {
+                    console.log('✅ Acceso al documento del iframe exitoso');
+                    
+                    const djEstado = iframeDoc.querySelector('#dj_estado');
+                    if (djEstado) {
+                        console.log('✅ Elemento #dj_estado encontrado en iframe');
+                        console.log('📋 Estado:', djEstado.textContent.trim());
+                        console.log('🏷️ Classes:', djEstado.className);
+                        console.log('📦 HTML:', djEstado.outerHTML);
+                    } else {
+                        console.log('❌ Elemento #dj_estado NO encontrado en iframe');
+                        console.log('🔍 Elementos disponibles en iframe:');
+                        const todosElementos = iframeDoc.querySelectorAll('*[id]');
+                        todosElementos.forEach((el, i) => {
+                            if (i < 10) { // Solo primeros 10
+                                console.log(`   ${i+1}. ID: ${el.id} | Tag: ${el.tagName}`);
+                            }
+                        });
+                    }
+                } else {
+                    console.log('❌ No se puede acceder al documento del iframe');
+                }
+            } catch (error) {
+                console.log('❌ Error accediendo al iframe:', error.message);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en debug:', error);
+    }
+};
+
+/**
+ * Función para cambiar manualmente al iframe y verificar
+ */
+window.cambiarAIframeManual = async function() {
+    try {
+        console.log('🔧 Cambiando manualmente al iframe...');
+        
+        // Si ya existe LicitacionAutomation, usar su iframeManager
+        if (window.licitacionAutomation && window.licitacionAutomation.iframeManager) {
+            await window.licitacionAutomation.iframeManager.switchToFrame('#ctl00_mpcphFormWizardFields__IFrameAttachment');
+            console.log('✅ Cambiado usando iframeManager');
+        } else {
+            // Método manual
+            const iframe = document.querySelector('#ctl00_mpcphFormWizardFields__IFrameAttachment');
+            if (iframe) {
+                // Nota: esto no funcionará desde consola por restricciones de seguridad
+                console.log('⚠️ Uso manual limitado por seguridad del navegador');
+                console.log('💡 Ejecuta: debugEstadoDJIframe() en su lugar');
+            }
+        }
+        
+        // Verificar estado
+        setTimeout(() => {
+            debugEstadoDJIframe();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+    }
+};
+
+/**
  * Función para analizar la página de precios EconomicBid
  */
 window.analizarPaginaPrecios = function() {
@@ -10829,6 +11079,147 @@ window.verElementosDJ = function() {
     console.log(`   - Enlaces DJ: ${enlacesDJ.length}`);
     console.log(`   - Tablas: ${tablas.length}`);
     console.log(`   - Iframes: ${iframes.length}`);
+};
+
+/**
+ * 🛠️ FUNCIÓN DEBUG ESPECÍFICA: Resetear esta licitación
+ */
+window.resetearLicitacionActual = async function() {
+    const licitacionId = "514862-132-LE25";
+    const procesadoKey = `djProcesada_${licitacionId}`;
+    
+    console.log('🧹 Reseteando licitación específica:', licitacionId);
+    await chrome.storage.local.remove(procesadoKey);
+    console.log('✅ Licitación reseteada - puede procesarse nuevamente');
+    console.log('🔄 Recarga la página para que tome efecto');
+};
+
+/**
+ * 🛡️ FUNCIÓN CRÍTICA: Limpiar memoria de bucles infinitos
+ */
+window.limpiarMemoriaBucles = async function(licitacionId = null) {
+    const automation = window.licitacionAutomation;
+    const targetId = licitacionId || (automation && automation.licitacionId);
+    
+    if (!targetId) {
+        console.log('❌ No se puede limpiar memoria sin licitacionId');
+        console.log('💡 Uso: limpiarMemoriaBucles("514862-132-LE25")');
+        return false;
+    }
+    
+    const procesadoKey = `djProcesada_${targetId}`;
+    console.log('🧹 Limpiando memoria de bucle para:', targetId);
+    
+    await chrome.storage.local.remove(procesadoKey);
+    console.log('✅ Memoria de bucle limpiada - La licitación puede procesarse nuevamente');
+    return true;
+};
+
+/**
+ * 📊 FUNCIÓN DEBUG: Ver estado de bucles
+ */
+window.debugEstadoBucles = async function(licitacionId = null) {
+    const automation = window.licitacionAutomation;
+    const targetId = licitacionId || (automation && automation.licitacionId);
+    
+    if (!targetId) {
+        console.log('❌ No se puede verificar bucle sin licitacionId');
+        console.log('💡 Uso: debugEstadoBucles("514862-132-LE25")');
+        return;
+    }
+    
+    const procesadoKey = `djProcesada_${targetId}`;
+    
+    console.log('');
+    console.log('🔧 ===== DEBUG BUCLES INFINITOS =====');
+    console.log(`🆔 LicitacionId: ${targetId}`);
+    
+    const procesadoData = await chrome.storage.local.get(procesadoKey);
+    
+    if (procesadoData[procesadoKey]) {
+        const tiempoTranscurrido = Date.now() - procesadoData[procesadoKey].timestamp;
+        const minutos = Math.round(tiempoTranscurrido / 60000);
+        
+        console.log('⚠️ BUCLE DETECTADO:');
+        console.log(`   - Estado: ${procesadoData[procesadoKey].estado}`);
+        console.log(`   - Procesado hace: ${minutos} minutos`);
+        console.log(`   - Timestamp: ${new Date(procesadoData[procesadoKey].timestamp).toLocaleTimeString()}`);
+        console.log('');
+        console.log('🛠️ Para limpiar: limpiarMemoriaBucles()');
+    } else {
+        console.log('✅ No hay bucle detectado para esta licitación');
+    }
+    console.log('=====================================');
+    console.log('');
+};
+
+/**
+ * Función principal de debug para el estado completo de la extensión
+ */
+window.debugEstadoCompleto = function() {
+    console.log('');
+    console.log('🔍 === DEBUG ESTADO COMPLETO EXTENSIÓN ===');
+    console.log(`📍 URL: ${window.location.href}`);
+    console.log(`📄 Título: ${document.title}`);
+    console.log('');
+    
+    // 1. Detectar tipo de página
+    if (window.location.href.includes('WizBIDCompleteEconomicBid.aspx')) {
+        console.log('💰 PÁGINA DETECTADA: Precios (WizBIDCompleteEconomicBid)');
+        console.log('🔧 Comando disponible: analizarPaginaPrecios()');
+        
+    } else if (window.location.href.includes('WizAttachment.aspx')) {
+        console.log('📄 PÁGINA DETECTADA: Documentos (WizAttachment)');
+        console.log('🔧 Comandos disponibles:');
+        console.log('   - debugEstadoDJIframe()  // Ver estado DJ en iframe');
+        console.log('   - cambiarAIframeManual()  // Cambiar a iframe manual');
+        
+    } else if (window.location.href.includes('dj-requisitos')) {
+        console.log('🖊️ PÁGINA DETECTADA: Declaración Jurada');
+        console.log('🔧 Comandos disponibles:');
+        console.log('   - verElementosDJ()  // Análisis elementos DJ');
+        console.log('   - debugMemoriaDJ()  // Estado memoria');
+        
+    } else {
+        console.log('❓ PÁGINA NO RECONOCIDA');
+    }
+    
+    // 2. Estado de la extensión
+    console.log('');
+    console.log('📊 ESTADO EXTENSIÓN:');
+    if (window.licitacionAutomation) {
+        console.log('✅ LicitacionAutomation cargada');
+        console.log(`📋 Licitación ID: ${window.licitacionAutomation.licitacionId || 'No detectado'}`);
+        console.log(`💾 Datos disponibles: ${window.licitacionAutomation.automationData ? 'SÍ' : 'NO'}`);
+    } else {
+        console.log('❌ LicitacionAutomation NO cargada');
+    }
+    
+    // 3. Memoria local relevante
+    console.log('');
+    console.log('💾 MEMORIA LOCAL:');
+    const storage = localStorage;
+    let itemsRelacionados = 0;
+    for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key.includes('dj_firmada') || key.includes('precios') || key.includes('licitacion')) {
+            console.log(`   ${key}: ${storage.getItem(key).substring(0, 50)}...`);
+            itemsRelacionados++;
+        }
+    }
+    if (itemsRelacionados === 0) {
+        console.log('   (No hay items relacionados)');
+    }
+    
+    console.log('');
+    console.log('🛠️ COMANDOS GLOBALES:');
+    console.log('   - debugMemoriaDJ()       // Estado memoria DJ');
+    console.log('   - verElementosDJ()       // Elementos DJ página');
+    console.log('   - analizarPaginaPrecios() // Estructura precios');
+    console.log('   - debugEstadoDJIframe()  // Estado DJ en iframe');
+    console.log('   - debugEstadoBucles()    // Ver bucles infinitos 🛡️');
+    console.log('   - limpiarMemoriaBucles() // Limpiar bucles 🧹');
+    console.log('   - debugEstadoCompleto()  // Este análisis');
 };
 
     console.log('🔍 DEBUG COMPLETO: Analizando TODOS los elementos posibles...');
