@@ -379,63 +379,87 @@ class LicitacionAutomation {
         console.log('⏳ Esperando que aparezca el modal de éxito...');
         
         let intentosEspera = 0;
-        const maxIntentosEspera = 10; // 10 segundos total
+        const maxIntentosEspera = 15; // 15 segundos total
+        let modalExitoEncontrado = null;
         
         while (intentosEspera < maxIntentosEspera) {
             await this.delay(1000);
             intentosEspera++;
             
-            // Verificar si apareció algún modal de éxito
-            const modalPotencial = document.querySelector('.sc-kAKABG.ejDMln, div[class*="ejDMln"], .sc-kAKABG');
-            if (modalPotencial && modalPotencial.offsetParent !== null) {
-                const texto = modalPotencial.textContent || '';
-                if (texto.includes('Declaración firmada') || texto.includes('firmada con éxito') || 
-                    texto.includes('Cerrar y volver')) {
-                    console.log(`✅ Modal de éxito encontrado en intento ${intentosEspera}`);
-                    break;
+            console.log(`⏳ Esperando modal de éxito... intento ${intentosEspera}/${maxIntentosEspera}`);
+            
+            // Buscar todos los modales visibles
+            const todosLosModales = document.querySelectorAll('div[class*="sc-kAKABG"], [role="dialog"], div[class*="modal"]');
+            
+            for (const modal of todosLosModales) {
+                if (modal.offsetParent !== null) { // Visible
+                    const textoModal = modal.textContent || '';
+                    
+                    // IMPORTANTE: Verificar que sea el modal de ÉXITO y NO el de confirmación
+                    const esModalExito = (
+                        (textoModal.includes('Declaración firmada con éxito') || 
+                         textoModal.includes('firmada con éxito') ||
+                         textoModal.includes('Cerrar y volver a la oferta')) &&
+                        !textoModal.includes('Estás a punto de firmar') &&
+                        !textoModal.includes('Una vez firmada')
+                    );
+                    
+                    if (esModalExito) {
+                        modalExitoEncontrado = modal;
+                        console.log(`✅ MODAL DE ÉXITO encontrado en intento ${intentosEspera}`);
+                        console.log(`📄 Texto del modal: "${textoModal.substring(0, 150)}..."`);
+                        break;
+                    }
                 }
             }
             
-            console.log(`⏳ Esperando modal de éxito... intento ${intentosEspera}/${maxIntentosEspera}`);
-        }
-        
-        // Buscar el modal de éxito por diferentes selectores
-        const selectoresModalExito = [
-            '.sc-kAKABG.ejDMln',  // Clase específica del modal de éxito que proporcionaste
-            'div[class*="ejDMln"]',
-            'div[class*="sc-kAKABG"]',
-            '[class*="modal"]',
-            '[role="dialog"]',
-            'div:has(h4:contains("Declaración firmada con éxito"))',
-            'div:has(button:contains("Cerrar y volver a la oferta"))'
-        ];
-        
-        let modalExitoEncontrado = null;
-        
-        // Buscar por selectores CSS
-        for (const selector of selectoresModalExito) {
-            try {
-                const modal = document.querySelector(selector);
-                if (modal && modal.offsetParent !== null) { // Visible
-                    modalExitoEncontrado = modal;
-                    console.log(`✅ Modal de éxito encontrado con selector: ${selector}`);
-                    break;
-                }
-            } catch (e) {
-                console.log(`⚠️ Error con selector modal éxito "${selector}": ${e.message}`);
+            if (modalExitoEncontrado) {
+                break;
             }
         }
         
-        // Método alternativo: buscar por texto del título
+        // Si no encontramos el modal específico, buscar por selectores
         if (!modalExitoEncontrado) {
-            console.log('🔍 Buscando modal por texto del título...');
-            const elementos = document.querySelectorAll('h4, .MuiTypography-h4');
+            console.log('🔍 Buscando modal de éxito por selectores específicos...');
+            
+            const selectoresModalExito = [
+                '.sc-kAKABG.ejDMln',
+                'div[class*="ejDMln"]',
+                'div[class*="sc-kAKABG"]'
+            ];
+            
+            for (const selector of selectoresModalExito) {
+                try {
+                    const modales = document.querySelectorAll(selector);
+                    for (const modal of modales) {
+                        if (modal.offsetParent !== null) {
+                            const texto = modal.textContent || '';
+                            // Verificar que NO sea el modal de confirmación
+                            if ((texto.includes('Declaración firmada') || texto.includes('Cerrar y volver')) &&
+                                !texto.includes('Estás a punto de firmar')) {
+                                modalExitoEncontrado = modal;
+                                console.log(`✅ Modal de éxito encontrado con selector: ${selector}`);
+                                break;
+                            }
+                        }
+                    }
+                    if (modalExitoEncontrado) break;
+                } catch (e) {
+                    console.log(`⚠️ Error con selector "${selector}": ${e.message}`);
+                }
+            }
+        }
+        
+        // Buscar por título h4
+        if (!modalExitoEncontrado) {
+            console.log('🔍 Buscando modal por texto del título H4...');
+            const elementos = document.querySelectorAll('h4, .MuiTypography-h4, h3, h2');
             
             for (const elemento of elementos) {
                 const texto = elemento.textContent || '';
-                if (texto.includes('Declaración firmada con éxito') || 
-                    texto.includes('firmada con éxito') ||
-                    texto.includes('Declaración firmada')) {
+                if ((texto.includes('Declaración firmada con éxito') || 
+                     texto.includes('firmada con éxito')) &&
+                    !texto.includes('Estás a punto')) {
                     modalExitoEncontrado = elemento.closest('div[class*="sc-kAKABG"], div[class*="modal"], [role="dialog"]');
                     if (modalExitoEncontrado && modalExitoEncontrado.offsetParent !== null) {
                         console.log('✅ Modal de éxito encontrado por texto del título');
@@ -446,82 +470,94 @@ class LicitacionAutomation {
         }
         
         if (!modalExitoEncontrado) {
-            console.log('⚠️ NO SE ENCONTRÓ EL MODAL ESPECÍFICO - BUSCANDO BOTÓN GLOBALMENTE...');
-            // Como último recurso, buscar el botón en toda la página
+            console.log('⚠️ NO SE ENCONTRÓ EL MODAL DE ÉXITO - BUSCANDO BOTÓN GLOBALMENTE...');
             return await this.buscarBotonCerrarGlobalmente();
         }
         
-        console.log('✅ Modal de declaración firmada con éxito detectado');
+        console.log('✅ Modal de declaración firmada con éxito CONFIRMADO');
         
         // Buscar el botón "Cerrar y volver a la oferta"
         let botonCerrarYVolver = null;
         
         // MÉTODO 1: Buscar por texto específico dentro del modal
-        const botonesEnModal = modalExitoEncontrado.querySelectorAll('button');
+        const botonesEnModal = modalExitoEncontrado.querySelectorAll('button, [role="button"]');
         console.log(`🔍 Botones encontrados en modal de éxito: ${botonesEnModal.length}`);
         
         for (const boton of botonesEnModal) {
             const textoBoton = boton.textContent || boton.innerText || '';
-            console.log(`   - Botón modal éxito: "${textoBoton}"`);
+            console.log(`   📌 Botón: "${textoBoton}"`);
             
-            // IMPORTANTE: Evitar el botón "Firmar sin Clave Única" que puede estar duplicado
+            // Buscar específicamente "Cerrar y volver a la oferta"
             if (textoBoton.includes('Cerrar y volver a la oferta') || 
                 textoBoton.includes('Cerrar y volver') || 
-                textoBoton.includes('volver a la oferta')) {
+                textoBoton.includes('Volver a la oferta')) {
                 botonCerrarYVolver = boton;
-                console.log(`✅ Botón "Cerrar y volver" encontrado: "${textoBoton}"`);
+                console.log(`✅ BOTÓN "CERRAR Y VOLVER A LA OFERTA" ENCONTRADO`);
                 break;
             }
-            // Solo aceptar "Cerrar" si no contiene "Firmar"
-            else if ((textoBoton.includes('Cerrar') || textoBoton.includes('Volver')) && 
-                     !textoBoton.includes('Firmar') && !textoBoton.includes('Clave')) {
+            // Aceptar "Cerrar" solo si NO contiene "Firmar"
+            else if (textoBoton.includes('Cerrar') && 
+                     !textoBoton.includes('Firmar') && 
+                     !textoBoton.includes('Clave Única')) {
                 botonCerrarYVolver = boton;
-                console.log(`✅ Botón "Cerrar/Volver" encontrado (sin firmar): "${textoBoton}"`);
+                console.log(`✅ Botón "Cerrar" encontrado (sin firmar): "${textoBoton}"`);
+                break;
+            }
+            // También buscar solo "Volver" sin "Firmar"
+            else if (textoBoton.includes('Volver') && 
+                     !textoBoton.includes('Firmar')) {
+                botonCerrarYVolver = boton;
+                console.log(`✅ Botón "Volver" encontrado: "${textoBoton}"`);
                 break;
             }
         }
         
-        // MÉTODO 2: Buscar por clases específicas del botón
+        // MÉTODO 2: Buscar por clases y atributos específicos
         if (!botonCerrarYVolver) {
-            console.log('🔍 Buscando por clases específicas del botón...');
+            console.log('🔍 Buscando botón por clases específicas...');
             const selectoresBotonCerrar = [
-                'button.sc-dmsloy.EaXFo.MuiButtonBase-root.sc-iXWftf.sc-hZocGY.jaiHKL.vhfwc',
+                'button[color="default"]',
+                'button[variant="contained"][color="default"]',
+                'button.sc-dmsloy.EaXFo[class*="jaiHKL"]',
                 'button[class*="jaiHKL"][class*="vhfwc"]',
-                'button[color="default"][variant="contained"]',
-                'button[margin="28px 0 0"]'
+                'button[class*="MuiButton-contained"]'
             ];
             
             for (const selector of selectoresBotonCerrar) {
                 try {
-                    const boton = modalExitoEncontrado.querySelector(selector);
-                    if (boton) {
+                    const botones = modalExitoEncontrado.querySelectorAll(selector);
+                    for (const boton of botones) {
                         const textoBoton = boton.textContent || '';
-                        // Verificar que NO sea el botón "Firmar sin Clave Única"
-                        if (!textoBoton.includes('Firmar sin Clave Única') && !textoBoton.includes('Firmar')) {
+                        // Verificar que NO sea el botón "Firmar"
+                        if (!textoBoton.includes('Firmar sin Clave Única') && 
+                            !textoBoton.includes('Firmar')) {
                             botonCerrarYVolver = boton;
-                            console.log(`✅ Botón cerrar encontrado por clase: ${selector} - Texto: "${textoBoton}"`);
+                            console.log(`✅ Botón encontrado por clase: ${selector} - "${textoBoton}"`);
                             break;
-                        } else {
-                            console.log(`⚠️ Botón ignorado (es de firmar): "${textoBoton}"`);
                         }
                     }
+                    if (botonCerrarYVolver) break;
                 } catch (e) {
                     console.log(`⚠️ Error con selector "${selector}": ${e.message}`);
                 }
             }
         }
         
-        // MÉTODO 3: Buscar cualquier botón contained/default en el modal (excluyendo "Firmar")
+        // MÉTODO 3: Buscar el SEGUNDO botón en el modal (el primero suele ser "X" de cerrar)
         if (!botonCerrarYVolver) {
-            console.log('🔍 Último recurso: buscar botón contained que NO sea de firmar...');
-            const botonesContained = modalExitoEncontrado.querySelectorAll('button[variant="contained"], .MuiButton-contained, button[color="default"]');
+            console.log('🔍 Último recurso: analizando todos los botones...');
+            const todosBotones = Array.from(botonesEnModal);
             
-            for (const boton of botonesContained) {
+            for (let i = 0; i < todosBotones.length; i++) {
+                const boton = todosBotones[i];
                 const textoBoton = boton.textContent || '';
-                // Solo aceptar si NO es un botón de firmar
-                if (!textoBoton.includes('Firmar') && !textoBoton.includes('Clave')) {
+                
+                // Ignorar botones vacíos (como el X) y botones de "Firmar"
+                if (textoBoton.trim() !== '' && 
+                    !textoBoton.includes('Firmar') && 
+                    !textoBoton.includes('Clave')) {
                     botonCerrarYVolver = boton;
-                    console.log(`✅ Botón contained encontrado (no firmar): "${textoBoton}"`);
+                    console.log(`✅ Botón encontrado (posición ${i+1}): "${textoBoton}"`);
                     break;
                 }
             }
@@ -529,33 +565,74 @@ class LicitacionAutomation {
         
         if (!botonCerrarYVolver) {
             console.log('❌ NO SE ENCONTRÓ EL BOTÓN "CERRAR Y VOLVER A LA OFERTA"');
+            console.log('🔍 Listado completo de botones en el modal:');
+            botonesEnModal.forEach((btn, idx) => {
+                console.log(`   ${idx + 1}. "${btn.textContent}" - Classes: ${btn.className}`);
+            });
             return false;
         }
         
         // HACER CLICK EN EL BOTÓN "CERRAR Y VOLVER A LA OFERTA"
         console.log(`🎯 Haciendo click en: "${botonCerrarYVolver.textContent}"`);
+        console.log(`📋 Clases del botón: ${botonCerrarYVolver.className}`);
         
         try {
-            // Scroll al botón (aunque esté en modal)
+            // Scroll al botón
             botonCerrarYVolver.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(500);
+            await this.delay(800);
             
-            // Click directo
-            console.log('🖱️ Haciendo click en "Cerrar y volver"...');
+            // Método 1: Click directo
+            console.log('🖱️ Método 1: Click directo en "Cerrar y volver"...');
             botonCerrarYVolver.click();
+            await this.delay(2000);
+            
+            // Verificar si volvimos a la oferta
+            const urlDespues = window.location.href;
+            if (!urlDespues.includes('/dj-requisitos/')) {
+                console.log('✅ NAVEGACIÓN EXITOSA - VOLVIMOS A LA OFERTA');
+                return true;
+            }
+            
+            // Método 2: Eventos de mouse completos
+            console.log('🖱️ Método 2: Eventos de mouse...');
+            const eventos = ['mousedown', 'mouseup', 'click'];
+            for (const tipoEvento of eventos) {
+                const evento = new MouseEvent(tipoEvento, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                });
+                botonCerrarYVolver.dispatchEvent(evento);
+                await this.delay(300);
+            }
+            await this.delay(2000);
+            
+            // Método 3: Focus + Enter
+            console.log('⌨️ Método 3: Focus + Enter...');
+            botonCerrarYVolver.focus();
+            await this.delay(200);
+            
+            const enterEvent = new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+            });
+            botonCerrarYVolver.dispatchEvent(enterEvent);
             await this.delay(3000);
             
             // Verificar si volvimos a la página principal (cambio de URL o desaparición del modal)
-            const urlDespues = window.location.href;
+            const urlDespues2 = window.location.href;
             const modalSigueVisible = modalExitoEncontrado.offsetParent !== null;
             
-            if (!modalSigueVisible || !urlDespues.includes('dj-requisitos')) {
+            if (!modalSigueVisible || !urlDespues2.includes('dj-requisitos')) {
                 console.log('✅ REGRESO A LA OFERTA EXITOSO - MODAL CERRADO');
                 return true;
             }
             
-            // Método alternativo: eventos
-            console.log('🖱️ Intento alternativo con eventos...');
+            // Método 4: Eventos adicionales
+            console.log('🖱️ Método 4: Eventos adicionales...');
             const events = ['mousedown', 'mouseup', 'click'];
             for (const eventType of events) {
                 const event = new MouseEvent(eventType, {
@@ -567,16 +644,16 @@ class LicitacionAutomation {
             }
             await this.delay(2000);
             
-            // Último intento: Enter key
-            console.log('⌨️ Último intento: tecla Enter...');
+            // Método 5: Último intento con Enter
+            console.log('⌨️ Método 5: Último intento con Enter...');
             botonCerrarYVolver.focus();
-            const enterEvent = new KeyboardEvent('keydown', {
+            const enterEvent2 = new KeyboardEvent('keydown', {
                 key: 'Enter',
                 code: 'Enter',
                 keyCode: 13,
                 bubbles: true
             });
-            botonCerrarYVolver.dispatchEvent(enterEvent);
+            botonCerrarYVolver.dispatchEvent(enterEvent2);
             await this.delay(2000);
             
             console.log('🎉 PROCESAMIENTO DE MODAL DE ÉXITO COMPLETADO');
@@ -674,6 +751,190 @@ class LicitacionAutomation {
             
         } catch (error) {
             console.log(`❌ Error en segundo modal: ${error.message}`);
+            return false;
+        }
+    }
+    
+    async procesarModalConfirmacionFirmar() {
+        console.log('📋 === PROCESANDO MODAL "ESTÁS A PUNTO DE FIRMAR..." ===');
+        
+        // Esperar que aparezca el modal
+        await this.delay(2000);
+        
+        // Buscar el modal por texto específico para evitar confusiones
+        let modalEncontrado = null;
+        
+        // Primero buscar por el texto característico del modal
+        const todosLosModales = document.querySelectorAll('div[class*="sc-kAKABG"], [role="dialog"], div[class*="leeTDo"]');
+        console.log(`🔍 Modales encontrados en la página: ${todosLosModales.length}`);
+        
+        for (const modal of todosLosModales) {
+            if (modal.offsetParent !== null) { // Visible
+                const textoModal = modal.textContent || '';
+                console.log(`📄 Analizando modal: "${textoModal.substring(0, 100)}..."`);
+                
+                // Verificar que sea el modal de confirmación específico
+                if (textoModal.includes('Estás a punto de firmar') || 
+                    textoModal.includes('Una vez firmada') ||
+                    textoModal.includes('quedará asociada a la licitación')) {
+                    modalEncontrado = modal;
+                    console.log('✅ MODAL DE CONFIRMACIÓN "ESTÁS A PUNTO DE FIRMAR..." ENCONTRADO');
+                    break;
+                }
+            }
+        }
+        
+        if (!modalEncontrado) {
+            console.log('⚠️ NO SE ENCONTRÓ EL MODAL DE CONFIRMACIÓN - Buscando por selector...');
+            
+            // Intentar con selectores específicos
+            const selectores = [
+                '.sc-kAKABG.leeTDo',
+                'div[class*="leeTDo"]',
+                'div[class*="sc-kAKABG"]'
+            ];
+            
+            for (const selector of selectores) {
+                const modal = document.querySelector(selector);
+                if (modal && modal.offsetParent !== null) {
+                    const texto = modal.textContent || '';
+                    if (texto.includes('Estás a punto') || texto.includes('Firmar sin Clave Única')) {
+                        modalEncontrado = modal;
+                        console.log(`✅ Modal encontrado con selector: ${selector}`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!modalEncontrado) {
+            console.log('❌ NO SE ENCONTRÓ EL MODAL DE CONFIRMACIÓN');
+            return false;
+        }
+        
+        // Buscar el botón "Firmar sin Clave Única" dentro del modal
+        const botonesEnModal = modalEncontrado.querySelectorAll('button');
+        console.log(`🔍 Botones en modal de confirmación: ${botonesEnModal.length}`);
+        
+        let botonFirmar = null;
+        
+        for (const boton of botonesEnModal) {
+            const textoBoton = boton.textContent || '';
+            const variant = boton.getAttribute('variant');
+            const color = boton.getAttribute('color');
+            const classes = boton.className || '';
+            
+            console.log(`   📌 Botón: "${textoBoton}"`);
+            console.log(`      Variant: ${variant}, Color: ${color}`);
+            console.log(`      Classes: ${classes}`);
+            
+            // Buscar el botón "Firmar sin Clave Única" con variant="contained"
+            if (textoBoton.includes('Firmar sin Clave Única')) {
+                // Verificar que sea el botón contained/primary (no el outlined inicial)
+                if (variant === 'contained' || color === 'primary' || 
+                    classes.includes('hOvxpq') || classes.includes('fQmeuA')) {
+                    botonFirmar = boton;
+                    console.log(`✅ BOTÓN "FIRMAR SIN CLAVE ÚNICA" ENCONTRADO (variant=${variant}, color=${color})`);
+                    break;
+                }
+            }
+        }
+        
+        // Si no encontramos con los criterios anteriores, buscar cualquier botón "Firmar"
+        if (!botonFirmar) {
+            console.log('🔍 Buscando botón "Firmar" como alternativa...');
+            for (const boton of botonesEnModal) {
+                const textoBoton = boton.textContent || '';
+                if (textoBoton.includes('Firmar') && !textoBoton.includes('Cerrar')) {
+                    botonFirmar = boton;
+                    console.log(`✅ Botón "Firmar" encontrado: "${textoBoton}"`);
+                    break;
+                }
+            }
+        }
+        
+        if (!botonFirmar) {
+            console.log('❌ NO SE ENCONTRÓ EL BOTÓN DE FIRMAR EN EL MODAL');
+            return false;
+        }
+        
+        // HACER CLICK EN EL BOTÓN con múltiples métodos
+        console.log(`🎯 Haciendo click en: "${botonFirmar.textContent}"`);
+        
+        try {
+            // Scroll al botón
+            botonFirmar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(800);
+            
+            // Método 1: Click directo
+            console.log('🖱️ Método 1: Click directo...');
+            botonFirmar.click();
+            await this.delay(2000);
+            
+            // Verificar si el modal se cerró
+            const modalCerrado = modalEncontrado.offsetParent === null;
+            if (modalCerrado) {
+                console.log('✅ MODAL DE CONFIRMACIÓN CERRADO - CLICK EXITOSO');
+                return true;
+            }
+            
+            // Método 2: Eventos de mouse completos
+            console.log('🖱️ Método 2: Eventos de mouse...');
+            const eventos = ['mousedown', 'mouseup', 'click'];
+            for (const tipoEvento of eventos) {
+                const evento = new MouseEvent(tipoEvento, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: 100,
+                    clientY: 100
+                });
+                botonFirmar.dispatchEvent(evento);
+                await this.delay(300);
+            }
+            await this.delay(1500);
+            
+            // Verificar nuevamente
+            const modalCerrado2 = modalEncontrado.offsetParent === null;
+            if (modalCerrado2) {
+                console.log('✅ MODAL CERRADO CON EVENTOS - CONFIRMACIÓN EXITOSA');
+                return true;
+            }
+            
+            // Método 3: Focus + Enter
+            console.log('⌨️ Método 3: Focus + Enter...');
+            botonFirmar.focus();
+            await this.delay(200);
+            
+            const enterEvent = new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true
+            });
+            botonFirmar.dispatchEvent(enterEvent);
+            await this.delay(1500);
+            
+            // Método 4: Click con coordenadas específicas
+            console.log('🖱️ Método 4: Click con coordenadas...');
+            const rect = botonFirmar.getBoundingClientRect();
+            const clickEvt = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                clientX: rect.left + rect.width / 2,
+                clientY: rect.top + rect.height / 2
+            });
+            botonFirmar.dispatchEvent(clickEvt);
+            await this.delay(1500);
+            
+            console.log('✅ PROCESAMIENTO COMPLETADO - Esperando resultado...');
+            return true;
+            
+        } catch (error) {
+            console.log(`❌ Error haciendo click en modal de confirmación: ${error.message}`);
             return false;
         }
     }
@@ -964,9 +1225,9 @@ class LicitacionAutomation {
                 contenidoDespues.includes('completado')) {
                 console.log('✅ BOTÓN FIRMAR CLICKEADO - ESPERANDO MODAL DE CONFIRMACIÓN...');
                 
-                // Esperar y procesar el modal de confirmación
+                // Esperar y procesar el modal de confirmación "Estás a punto de firmar..."
                 await this.delay(2000);
-                const modalAceptado = await this.procesarModalConfirmacion();
+                const modalAceptado = await this.procesarModalConfirmacionFirmar();
                 
                 if (modalAceptado) {
                     console.log('✅ MODAL DE CONFIRMACIÓN ACEPTADO EXITOSAMENTE');
@@ -983,7 +1244,7 @@ class LicitacionAutomation {
                         return true;
                     }
                 } else {
-                    console.log('⚠️ No se pudo procesar el modal de confirmación');
+                    console.log('⚠️ No se pudo procesar el modal de confirmación - Continuando con segundo intento...');
                 }
             }
             
@@ -997,15 +1258,21 @@ class LicitacionAutomation {
             botonEncontrado.dispatchEvent(clickEvent);
             await this.delay(2000);
             
-            // También procesar modal después del segundo intento
-            console.log('✅ MODAL DE CONFIRMACIÓN ACEPTADO (2do intento)');
+            // Procesar modal de confirmación después del segundo intento
+            console.log('🔍 PROCESANDO MODAL DE CONFIRMACIÓN (2do intento)...');
+            await this.delay(2000);
+            const modalConfirmacionAceptado = await this.procesarModalConfirmacionFirmar();
             
-            // Esperar y procesar el modal de éxito después del segundo intento también
-            await this.delay(3000);
-            const modalExitoAceptado2 = await this.procesarModalExito();
-            if (modalExitoAceptado2) {
-                console.log('🎉 MODAL DE ÉXITO PROCESADO EXITOSAMENTE');
-                return true;
+            if (modalConfirmacionAceptado) {
+                console.log('✅ MODAL DE CONFIRMACIÓN PROCESADO - ESPERANDO MODAL DE ÉXITO...');
+                
+                // Ahora esperar y procesar el modal de éxito
+                await this.delay(3000);
+                const modalExitoAceptado2 = await this.procesarModalExito();
+                if (modalExitoAceptado2) {
+                    console.log('🎉 FLUJO COMPLETO: Modal Confirmación → Modal Éxito → Volver a Oferta');
+                    return true;
+                }
             }
             
             console.log('✅ Click en botón firmar completado');
